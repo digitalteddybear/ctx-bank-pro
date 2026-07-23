@@ -34,7 +34,7 @@ export function CommandPalette() {
         className="command-palette"
         role="dialog"
         aria-modal="true"
-        aria-label="Search the knowledge network"
+        aria-label="Search graph nodes"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="command-input">
@@ -58,7 +58,7 @@ export function CommandPalette() {
               if (event.key === "Enter" && results[activeIndex]) choose(results[activeIndex].node.id);
               if (event.key === "Escape") setOpen(false);
             }}
-            placeholder="Search frameworks, systems, claims, sources…"
+            placeholder="Search node titles, descriptions, tags or types…"
           />
           <IconButton label="Close search" onClick={() => setOpen(false)}>
             <X size={16} />
@@ -66,7 +66,7 @@ export function CommandPalette() {
         </div>
         <div className="command-meta">
           <span>
-            <Command size={12} /> Semantic and lexical retrieval
+            <Command size={12} /> Weighted text search across node fields
           </span>
           <span>{results.length} results</span>
         </div>
@@ -88,13 +88,13 @@ export function CommandPalette() {
                   {nodeTypeLabels[result.node.type]} · {result.reasons.join(" · ")}
                 </small>
               </span>
-              <span className="result-score">{Math.round(result.score * 100)}</span>
+              <span className="result-score">{Math.round(result.score * 100)}% match</span>
               <ArrowRight size={15} />
             </button>
           ))}
           {!results.length && (
             <div className="command-empty">
-              No indexed knowledge matched this query.
+              No graph nodes match this query.
             </div>
           )}
         </div>

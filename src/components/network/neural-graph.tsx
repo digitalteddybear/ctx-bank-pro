@@ -135,7 +135,7 @@ export function NeuralGraph({
       {!ready && (
         <div className="graph-loading">
           <div className="graph-loading__field" />
-          <span>Forming neural field</span>
+          <span>Rendering graph</span>
         </div>
       )}
       <ForceGraph3D<RenderNodeData, RenderLinkData>
@@ -197,7 +197,7 @@ export function NeuralGraph({
       <div className="graph-vignette" aria-hidden="true" />
       <div className="graph-hint">
         <span className="graph-hint__mouse" />
-        Drag to orbit · scroll to travel
+        Drag to rotate · scroll to zoom
       </div>
     </div>
   );

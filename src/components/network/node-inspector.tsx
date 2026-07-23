@@ -23,6 +23,14 @@ const statusTone = {
   deprecated: "neutral",
 } as const;
 
+const statusLabel = {
+  verified: "Verified",
+  hypothesis: "Hypothesis",
+  review: "Awaiting review",
+  conflicted: "Conflicting records",
+  deprecated: "Deprecated",
+} as const;
+
 export function NodeInspector() {
   const snapshot = useGraphStore((state) => state.snapshot);
   const selectedNodeId = useGraphStore((state) => state.selectedNodeId);
@@ -43,10 +51,10 @@ export function NodeInspector() {
     ) ?? [];
 
   return (
-    <aside className="inspector" aria-label="Knowledge node details">
+    <aside className="inspector" aria-label="Graph node details">
       <div className="inspector__header">
         <div>
-          <div className="eyebrow">Node inspector</div>
+          <div className="eyebrow">Node details</div>
           <span className="inspector__id">{node.id}</span>
         </div>
         <IconButton label="Close inspector" onClick={() => setInspectorOpen(false)}>
@@ -64,21 +72,21 @@ export function NodeInspector() {
           </div>
           <div className="inspector__badges">
             <Badge tone="accent">{nodeTypeLabels[node.type]}</Badge>
-            <Badge tone={statusTone[node.status]}>{node.status}</Badge>
+            <Badge tone={statusTone[node.status]}>{statusLabel[node.status]}</Badge>
           </div>
           <h2>{node.label}</h2>
           <p>{node.description}</p>
         </section>
 
         <section className="inspector__section">
-          <div className="section-label">Knowledge integrity</div>
+          <div className="section-label">Record metadata</div>
           <div className="integrity-grid">
             <div>
-              <span>Authority</span>
+              <span>Authority level</span>
               <strong>{node.authority.replaceAll("-", " ")}</strong>
             </div>
             <div>
-              <span>Confidence</span>
+              <span>Confidence score</span>
               <strong>{Math.round(node.confidence * 100)}%</strong>
             </div>
             <div>
@@ -97,7 +105,7 @@ export function NodeInspector() {
 
         {node.tags.length > 0 && (
           <section className="inspector__section">
-            <div className="section-label">Topics</div>
+            <div className="section-label">Tags</div>
             <div className="tag-list">
               {node.tags.map((tag) => (
                 <span className="tag" key={tag}>
@@ -109,7 +117,7 @@ export function NodeInspector() {
         )}
 
         <section className="inspector__section">
-          <div className="section-label">Relationships</div>
+          <div className="section-label">Linked nodes</div>
 
           <div className="relationship-list">
             {attachedLinks.slice(0, 8).map((relationship) => {
@@ -132,12 +140,12 @@ export function NodeInspector() {
                 </button>
               );
             })}
-            {!attachedLinks.length && <div className="empty-inline">No active relationships.</div>}
+            {!attachedLinks.length && <div className="empty-inline">No links connect to this node.</div>}
           </div>
         </section>
 
         <section className="inspector__section">
-          <div className="section-label">Source provenance</div>
+          <div className="section-label">Source references</div>
           <div className="source-list">
             {node.sources.map((item) => (
               <div className="source-card" key={`${item.sourceId}-${item.path}`}>
@@ -152,7 +160,7 @@ export function NodeInspector() {
             {!node.sources.length && (
               <div className="source-empty">
                 <ShieldCheck size={17} />
-                <span>Awaiting an attached source.</span>
+                <span>No source reference is attached.</span>
               </div>
             )}
           </div>
@@ -161,7 +169,7 @@ export function NodeInspector() {
 
       <div className="inspector__footer inspector__footer--readonly">
         <ShieldCheck size={14} />
-        Read-only projection · Agents maintain graph knowledge
+        Read only · Graph changes require agent access
       </div>
     </aside>
   );

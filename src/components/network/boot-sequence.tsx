@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 
-const steps = ["Resolving sources", "Mapping relationships", "Warming the neural field"];
+const steps = ["Loading application", "Loading graph data", "Starting graph renderer"];
 
 export function BootSequence({ progress }: { progress: number }) {
   const index = Math.min(steps.length - 1, Math.floor(progress * steps.length));
@@ -25,8 +25,8 @@ export function BootSequence({ progress }: { progress: number }) {
         <span className="boot-orbit__node boot-orbit__node--three" />
       </div>
       <div className="boot-copy">
-        <div className="eyebrow">World Creators intelligence</div>
-        <h1>Knowledge network</h1>
+        <div className="eyebrow">Application start</div>
+        <h1>World Creators Knowledge Graph</h1>
         <p>{steps[index]}</p>
         <div className="boot-progress">
           <motion.span animate={{ width: `${Math.max(8, progress * 100)}%` }} />

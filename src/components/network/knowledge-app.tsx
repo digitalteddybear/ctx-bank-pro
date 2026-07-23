@@ -30,9 +30,9 @@ import type { GraphMetrics, GraphSnapshot, NodeType } from "@/lib/graph/types";
 import { Badge, Button, IconButton, Panel } from "@/components/ui/primitives";
 
 const navItems = [
-  { id: "dashboard", label: "Knowledge observatory", icon: Home },
-  { id: "network", label: "Neural network", icon: Network },
-  { id: "sources", label: "Source registry", icon: Database },
+  { id: "dashboard", label: "Graph status", icon: Home },
+  { id: "network", label: "Knowledge graph", icon: Network },
+  { id: "sources", label: "Documents and sources", icon: Database },
 ] as const;
 
 interface DocumentSummary {
@@ -115,13 +115,35 @@ function MetricCard({
 }
 
 function formatTimestamp(value: string | null | undefined) {
-  if (!value) return "Awaiting sync";
+  if (!value) return "Not loaded";
   return new Intl.DateTimeFormat("en", {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatSyncState(state: "connecting" | "live" | "stale" | "error") {
+  if (state === "live") return "Up to date";
+  if (state === "connecting") return "Connecting";
+  if (state === "stale") return "Update delayed";
+  return "Refresh failed";
+}
+
+function formatDocumentStatus(status: DocumentSummary["status"]) {
+  if (status === "ready_for_agent") return "Awaiting agent";
+  if (status === "processed") return "Processed";
+  return "Text extraction failed";
+}
+
+function formatNodeStatus(status: string) {
+  if (status === "review") return "Awaiting review";
+  return status.replaceAll("_", " ");
+}
+
+function formatStorageMode(mode: string | undefined) {
+  return mode === "memory" ? "Memory only" : "Local file";
 }
 
 function formatBytes(value: number) {
@@ -157,13 +179,13 @@ function DashboardView({
     >
       <div className="workspace-heading">
         <div>
-          <div className="eyebrow">Agent-maintained knowledge system</div>
-          <h1>Knowledge base observatory</h1>
-          <p>Read-only visibility into the graph, source corpus, ingestion queue and agent activity.</p>
+          <div className="eyebrow">Graph and document status</div>
+          <h1>Knowledge graph status</h1>
+          <p>Counts and recent updates for nodes, links, indexed files and uploaded documents.</p>
         </div>
         <div className="workspace-heading__actions">
           <Button variant="secondary" onClick={() => setViewMode("network")}>
-            Explore network
+            Open knowledge graph
             <Network size={15} />
           </Button>
         </div>
@@ -171,30 +193,30 @@ function DashboardView({
 
       <section className="metric-grid" aria-label="Knowledge base status">
         <MetricCard
-          label="Graph knowledge"
+          label="Active nodes"
           value={metrics.activeNodes}
-          detail="Active semantic nodes"
+          detail="Available for search and traversal"
           icon={CircleDot}
           accent="#71D0E7"
         />
         <MetricCard
-          label="Relationships"
+          label="Active links"
           value={metrics.relationships}
-          detail="Typed traversal paths"
+          detail="Active links between nodes"
           icon={GitBranch}
           accent="#5ED5C8"
         />
         <MetricCard
-          label="Indexed filebase"
+          label="Indexed files"
           value={runtime?.corpus.sourceCount ?? "—"}
-          detail={`${runtime?.corpus.textualCount ?? 0} directly text-readable`}
+          detail={`${runtime?.corpus.textualCount ?? 0} text-format files`}
           icon={FileArchive}
           accent="#71B8FF"
         />
         <MetricCard
-          label="Agent ingestion queue"
+          label="Awaiting agent processing"
           value={runtime?.ingestion.pending ?? pendingDocuments.length}
-          detail={`${runtime?.ingestion.processed ?? 0} uploads processed`}
+          detail={`${runtime?.ingestion.processed ?? 0} uploaded documents processed`}
           icon={FileClock}
           accent="#F6B55D"
         />
@@ -204,17 +226,17 @@ function DashboardView({
         <Panel className="network-preview">
           <div className="panel-heading panel-heading--overlay">
             <div>
-              <div className="section-label">Live backend topology</div>
-              <h2>Neural field</h2>
+              <div className="section-label">Current graph data</div>
+              <h2>Knowledge graph</h2>
             </div>
             <div className="panel-heading__meta">
-              <button onClick={() => setViewMode("network")}>Expand</button>
+              <button onClick={() => setViewMode("network")}>Open full graph</button>
             </div>
           </div>
           <NeuralGraph compact />
           <div className="network-preview__footer">
             <span>{metrics.activeNodes} nodes · {metrics.relationships} relationships</span>
-            <span>Backend snapshot {formatTimestamp(snapshot.generatedAt)}</span>
+            <span>Data updated {formatTimestamp(snapshot.generatedAt)}</span>
           </div>
         </Panel>
 
@@ -222,26 +244,26 @@ function DashboardView({
           <Panel className="runtime-panel">
             <div className="panel-heading">
               <div>
-                <div className="section-label">Runtime</div>
-                <h2>Dynamic graph projection</h2>
+                <div className="section-label">Server connection</div>
+                <h2>Backend status</h2>
               </div>
               <Server size={17} />
             </div>
             <dl className="runtime-facts">
               <div>
-                <dt>Frontend sync</dt>
-                <dd data-state={syncState}>{syncState}</dd>
+                <dt>Graph data</dt>
+                <dd data-state={syncState}>{formatSyncState(syncState)}</dd>
               </div>
               <div>
-                <dt>Last polled</dt>
+                <dt>Last refresh</dt>
                 <dd>{formatTimestamp(lastSyncedAt)}</dd>
               </div>
               <div>
-                <dt>Persistence</dt>
-                <dd>{runtime?.persistence ?? "file"}</dd>
+                <dt>Storage mode</dt>
+                <dd>{formatStorageMode(runtime?.persistence)}</dd>
               </div>
               <div>
-                <dt>Corpus size</dt>
+                <dt>Indexed file size</dt>
                 <dd>{formatBytes(runtime?.corpus.totalBytes ?? 0)}</dd>
               </div>
             </dl>
@@ -250,8 +272,8 @@ function DashboardView({
           <Panel className="activity-panel activity-panel--agent">
             <div className="panel-heading">
               <div>
-                <div className="section-label">Agent and ingestion activity</div>
-                <h2>Backend change feed</h2>
+                <div className="section-label">Recent writes</div>
+                <h2>Graph change history</h2>
               </div>
               <Activity size={17} />
             </div>
@@ -282,8 +304,8 @@ function DashboardView({
         <Panel className="knowledge-distribution">
           <div className="panel-heading">
             <div>
-              <div className="section-label">Ontology coverage</div>
-              <h2>Knowledge distribution</h2>
+              <div className="section-label">Node types</div>
+              <h2>Active nodes by type</h2>
             </div>
             <Boxes size={17} />
           </div>
@@ -313,18 +335,18 @@ function DashboardView({
         <Panel className="ingestion-panel">
           <div className="panel-heading">
             <div>
-              <div className="section-label">RAG workflow</div>
-              <h2>Document ingestion</h2>
+              <div className="section-label">Upload processing</div>
+              <h2>Document processing status</h2>
             </div>
             <FileArchive size={17} />
           </div>
           <p>
-            Human uploads are extracted and chunked on this host. Agents read the queue,
-            derive knowledge and relationships, then complete each ingestion record.
+            The server extracts text from uploaded files and divides it into chunks. Agents
+            read those chunks, create nodes and links, then mark each document as processed.
           </p>
           <div className="ingestion-summary">
-            <span><strong>{runtime?.ingestion.pending ?? 0}</strong> ready for agents</span>
-            <span><strong>{runtime?.ingestion.failed ?? 0}</strong> extraction exceptions</span>
+            <span><strong>{runtime?.ingestion.pending ?? 0}</strong> awaiting agent processing</span>
+            <span><strong>{runtime?.ingestion.failed ?? 0}</strong> text-extraction failures</span>
           </div>
         </Panel>
       </section>
@@ -346,12 +368,12 @@ function NetworkView() {
     >
       <div className="network-canvas-heading">
         <div>
-          <div className="eyebrow">Agent-maintained topology</div>
-          <h1>{selected?.label ?? "World Creators network"}</h1>
+          <div className="eyebrow">Knowledge graph</div>
+          <h1>{selected?.label ?? "World Creators knowledge graph"}</h1>
         </div>
         <button className="network-search" onClick={() => setCommandOpen(true)}>
           <Search size={15} />
-          Find knowledge
+          Search nodes
           <kbd>⌘ K</kbd>
         </button>
       </div>
@@ -384,9 +406,9 @@ function SourcesView({ documents }: { documents: DocumentSummary[] }) {
     >
       <div className="workspace-heading">
         <div>
-          <div className="eyebrow">Evidence and ingestion</div>
-          <h1>Source registry</h1>
-          <p>Inspect uploaded evidence and trace graph knowledge back to source material.</p>
+          <div className="eyebrow">Uploaded documents and source nodes</div>
+          <h1>Documents and graph sources</h1>
+          <p>Review uploaded files and open the graph nodes that reference source material.</p>
         </div>
         <Badge tone="cyan">{documents.length} uploaded documents</Badge>
       </div>
@@ -395,8 +417,8 @@ function SourcesView({ documents }: { documents: DocumentSummary[] }) {
         <Panel className="document-inbox">
           <div className="panel-heading">
             <div>
-              <div className="section-label">Human-supplied evidence</div>
-              <h2>Agent ingestion inbox</h2>
+              <div className="section-label">Uploaded documents</div>
+              <h2>Document processing queue</h2>
             </div>
             <FileClock size={17} />
           </div>
@@ -428,7 +450,7 @@ function SourcesView({ documents }: { documents: DocumentSummary[] }) {
                         : "warning"
                   }
                 >
-                  {document.status.replaceAll("_", " ")}
+                  {formatDocumentStatus(document.status)}
                 </Badge>
               </button>
             ))}
@@ -438,9 +460,9 @@ function SourcesView({ documents }: { documents: DocumentSummary[] }) {
 
       <Panel className="source-table">
         <div className="source-table__head">
-          <span>Graph source</span>
-          <span>Authority</span>
-          <span>Connections</span>
+          <span>Source node</span>
+          <span>Authority level</span>
+          <span>Links</span>
           <span>Status</span>
           <span />
         </div>
@@ -461,14 +483,14 @@ function SourcesView({ documents }: { documents: DocumentSummary[] }) {
                 <i><FileText size={16} /></i>
                 <span>
                   <strong>{node.label}</strong>
-                  <small>{node.sources[0]?.path ?? "Derived knowledge source"}</small>
+                  <small>{node.sources[0]?.path ?? "No file path recorded"}</small>
                 </span>
               </span>
               <span className="source-table__authority">{node.authority}</span>
               <span className="source-table__coverage">{linked} typed links</span>
               <span>
                 <Badge tone={node.status === "verified" ? "success" : "warning"}>
-                  {node.status}
+                  {formatNodeStatus(node.status)}
                 </Badge>
               </span>
               <span className="source-table__index">{String(index + 1).padStart(2, "0")}</span>
@@ -583,17 +605,19 @@ export function KnowledgeApp() {
           <div className="product-name">
             <span>World Creators</span>
             <i />
-            Knowledge Network
+            Knowledge Graph
           </div>
           <button className="global-search" onClick={() => setCommandOpen(true)}>
             <Search size={15} />
-            <span>Search the network</span>
+            <span>Search graph nodes</span>
             <kbd><Command size={11} /> K</kbd>
           </button>
           <div className="topbar__actions">
             <span className="backend-sync" data-state={syncState}>
               <i />
-              {syncState === "live" ? `Synced ${formatTimestamp(lastSyncedAt)}` : syncState}
+              {syncState === "live"
+                ? `Updated ${formatTimestamp(lastSyncedAt)}`
+                : formatSyncState(syncState)}
             </span>
             <DocumentUpload onComplete={syncBackend} />
           </div>

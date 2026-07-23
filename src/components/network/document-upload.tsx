@@ -39,11 +39,11 @@ export function DocumentUpload({ onComplete }: { onComplete: () => Promise<void>
       form.append("file", file);
       const response = await fetch("/api/documents", { method: "POST", body: form });
       const payload = (await response.json()) as UploadResult & { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "Document ingestion failed.");
+      if (!response.ok) throw new Error(payload.error ?? "Document upload failed.");
       setResult(payload);
       await onComplete();
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Document ingestion failed.");
+      setError(uploadError instanceof Error ? uploadError.message : "Document upload failed.");
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -61,7 +61,7 @@ export function DocumentUpload({ onComplete }: { onComplete: () => Promise<void>
     <>
       <Button size="sm" onClick={() => setOpen(true)}>
         <FileUp size={15} />
-        Add documentation
+        Upload document
       </Button>
 
       {open &&
@@ -76,8 +76,8 @@ export function DocumentUpload({ onComplete }: { onComplete: () => Promise<void>
           >
             <header className="upload-dialog__header">
               <div>
-                <div className="eyebrow">Ingestion inbox</div>
-                <h2 id="upload-title">Add source documentation</h2>
+                <div className="eyebrow">Document upload</div>
+                <h2 id="upload-title">Upload a document</h2>
               </div>
               <IconButton label="Close upload" onClick={close}>
                 <X size={17} />
@@ -105,7 +105,7 @@ export function DocumentUpload({ onComplete }: { onComplete: () => Promise<void>
                 <>
                   <LoaderCircle className="spin" size={25} />
                   <strong>Extracting and chunking document</strong>
-                  <span>Preparing a backend source record for agent analysis…</span>
+                  <span>Saving the file and creating text chunks…</span>
                 </>
               ) : result ? (
                 <>
@@ -113,8 +113,8 @@ export function DocumentUpload({ onComplete }: { onComplete: () => Promise<void>
                   <strong>{result.originalName}</strong>
                   <span>
                     {result.status === "ready_for_agent"
-                      ? `${result.chunkCount} RAG chunks are ready for an agent.`
-                      : result.error ?? "The file was stored but needs manual extraction."}
+                      ? `${result.chunkCount} text chunks saved. The document is awaiting agent processing.`
+                      : result.error ?? "File saved. Text extraction failed and requires agent review."}
                   </span>
                 </>
               ) : (
@@ -144,7 +144,8 @@ export function DocumentUpload({ onComplete }: { onComplete: () => Promise<void>
             )}
 
             <footer className="upload-dialog__footer">
-              Files stay on this host. Humans supply evidence; agents parse and maintain the graph.
+              Files are stored on this server. Uploading creates a source node; an agent must
+              process the text before derived knowledge is added.
             </footer>
           </section>
           </div>,

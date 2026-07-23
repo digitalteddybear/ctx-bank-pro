@@ -16,10 +16,10 @@ let createdId;
 
 try {
   await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 30_000 });
-  await page.getByRole("heading", { name: "Knowledge base observatory" }).waitFor();
+  await page.getByRole("heading", { name: "Knowledge graph status" }).waitFor();
   const metric = page
     .locator(".metric-card")
-    .filter({ hasText: "Graph knowledge" })
+    .filter({ hasText: "Active nodes" })
     .locator(":scope > strong");
   const before = Number(await metric.textContent());
 
@@ -50,7 +50,7 @@ try {
   await page.waitForFunction(
     ({ expected }) => {
       const cards = [...document.querySelectorAll(".metric-card")];
-      const graphCard = cards.find((card) => card.textContent?.includes("Graph knowledge"));
+      const graphCard = cards.find((card) => card.textContent?.includes("Active nodes"));
       const value = graphCard?.querySelector(":scope > strong")?.textContent;
       return Number(value) === expected;
     },
@@ -59,7 +59,7 @@ try {
   );
 
   await page.keyboard.press("Meta+K");
-  await page.getByPlaceholder(/Search frameworks/i).fill(label);
+  await page.getByPlaceholder(/Search node titles/i).fill(label);
   await page
     .locator(".command-results button")
     .filter({ hasText: label })

@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Document ingestion failed.",
+        error: error instanceof Error ? error.message : "Document upload or text extraction failed.",
         acceptedExtensions: ACCEPTED_DOCUMENT_EXTENSIONS,
       },
       { status: 400 },

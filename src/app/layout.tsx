@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "World Creators · Knowledge Network",
-  description: "A live, provenance-aware neural knowledge graph for World Creators.",
+  title: "World Creators · Knowledge Graph",
+  description: "Search and review World Creators graph nodes, links, documents and source references.",
 };
 
 export const viewport: Viewport = {

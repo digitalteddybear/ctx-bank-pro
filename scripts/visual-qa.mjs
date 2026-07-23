@@ -31,20 +31,21 @@ page.on("console", (message) => {
 });
 
 await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 30_000 });
-await page.getByRole("heading", { name: "Knowledge base observatory" }).waitFor();
+await page.getByRole("heading", { name: "Knowledge graph status" }).waitFor();
 await page.locator(".graph-loading").waitFor({ state: "hidden", timeout: 10_000 });
-const dashboardVisible = await page.getByText("Agent-maintained knowledge system").isVisible();
+const dashboardVisible = await page.getByText("Graph and document status").isVisible();
+await page.waitForTimeout(700);
 await page.screenshot({
   path: path.join(outputDirectory, "dashboard.png"),
   fullPage: true,
 });
 
-await page.getByRole("button", { name: "Add documentation" }).click();
-await page.getByRole("heading", { name: "Add source documentation" }).waitFor();
+await page.getByRole("button", { name: "Upload document" }).click();
+await page.getByRole("heading", { name: "Upload a document" }).waitFor();
 await page.getByRole("button", { name: "Close upload" }).click();
 
 await page.keyboard.press("Meta+K");
-await page.getByPlaceholder(/Search frameworks/i).fill("Bulletproof Offer");
+await page.getByPlaceholder(/Search node titles/i).fill("Bulletproof Offer");
 await page.locator(".command-results button").first().click();
 await page.getByRole("heading", { name: "Bulletproof Offer™" }).first().waitFor();
 await page.locator(".graph-loading").waitFor({ state: "hidden", timeout: 10_000 });
@@ -58,11 +59,11 @@ const report = {
   title: await page.title(),
   dashboardVisible,
   graphCanvasCount: await page.locator("canvas").count(),
-  documentUploadAvailable: await page.getByRole("button", { name: "Add documentation" }).isVisible(),
+  documentUploadAvailable: await page.getByRole("button", { name: "Upload document" }).isVisible(),
   humanKnowledgeMutationControls:
     (await page.getByRole("button", { name: /Add knowledge|Edit|Deprecate|Remove node|Connect/i }).count()),
   commandSearchVerified: true,
-  inspectorVerified: await page.getByText("Knowledge integrity").isVisible(),
+  inspectorVerified: await page.getByText("Record metadata").isVisible(),
   pageErrors,
   consoleErrors,
 };
@@ -73,6 +74,7 @@ await browser.close();
 if (
   pageErrors.length ||
   consoleErrors.length ||
+  !report.dashboardVisible ||
   report.graphCanvasCount < 1 ||
   report.humanKnowledgeMutationControls > 0
 ) {

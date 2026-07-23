@@ -51,7 +51,7 @@ export function searchGraph(
     return graph.nodes.slice(0, limit).map((node) => ({
       node,
       score: node.authority === "primary" ? 1 : 0.7,
-      reasons: node.authority === "primary" ? ["Primary authority"] : ["Active knowledge"],
+      reasons: node.authority === "primary" ? ["Primary authority"] : ["Active node"],
     }));
   }
 
@@ -72,9 +72,9 @@ export function searchGraph(
     const reasons = new Set<string>();
     result.matches?.forEach((match) => {
       if (match.key === "label") reasons.add("Title match");
-      if (match.key === "description") reasons.add("Semantic description match");
-      if (match.key === "tags") reasons.add("Topic match");
-      if (match.key === "type") reasons.add("Knowledge type match");
+      if (match.key === "description") reasons.add("Description match");
+      if (match.key === "tags") reasons.add("Tag match");
+      if (match.key === "type") reasons.add("Node type match");
     });
     if (result.item.authority === "primary") reasons.add("Primary authority");
 
