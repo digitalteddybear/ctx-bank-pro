@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+coverage
+.env
+.env.local
+*.log
+.DS_Store
+data/generated
+data/runtime-graph.json
+data/runtime-graph.json.tmp
+dashboard.png
+network.png
