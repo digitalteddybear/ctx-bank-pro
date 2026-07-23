@@ -176,10 +176,7 @@ body {
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at 70% -10%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 32%),
-    radial-gradient(circle at 8% 78%, color-mix(in srgb, var(--chart-2) 5.5%, transparent), transparent 28%),
-    var(--bg);
+  background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 14px;
