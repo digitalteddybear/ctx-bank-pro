@@ -5,6 +5,7 @@ coverage
 .env
 .env.local
 *.log
+*.tsbuildinfo
 .DS_Store
 data/generated
 data/runtime-graph.json
