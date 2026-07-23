@@ -197,28 +197,28 @@ function DashboardView({
           value={metrics.activeNodes}
           detail="Available for search and traversal"
           icon={CircleDot}
-          accent="#71D0E7"
+          accent="#58D3DB"
         />
         <MetricCard
           label="Active links"
           value={metrics.relationships}
           detail="Active links between nodes"
           icon={GitBranch}
-          accent="#5ED5C8"
+          accent="#00B87A"
         />
         <MetricCard
           label="Indexed files"
           value={runtime?.corpus.sourceCount ?? "—"}
           detail={`${runtime?.corpus.textualCount ?? 0} text-format files`}
           icon={FileArchive}
-          accent="#71B8FF"
+          accent="#58D3DB"
         />
         <MetricCard
           label="Awaiting agent processing"
           value={runtime?.ingestion.pending ?? pendingDocuments.length}
           detail={`${runtime?.ingestion.processed ?? 0} uploaded documents processed`}
           icon={FileClock}
-          accent="#F6B55D"
+          accent="#F7B928"
         />
       </section>
 
