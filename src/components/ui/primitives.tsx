@@ -61,7 +61,7 @@ export function Badge({
   children,
   className,
 }: {
-  tone?: "neutral" | "success" | "warning" | "danger" | "violet" | "cyan";
+  tone?: "neutral" | "success" | "warning" | "danger" | "accent" | "cyan";
   children: ReactNode;
   className?: string;
 }) {

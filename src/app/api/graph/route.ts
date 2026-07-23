@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { graphRepository } from "@/lib/server/persistent-repository";
 import { newLinkSchema, newNodeSchema } from "@/lib/server/validation";
+import { requireAgentWrite } from "@/lib/server/agent-write-auth";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("query");
@@ -25,10 +27,14 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json(await graphRepository.snapshot());
+  return NextResponse.json(await graphRepository.snapshot(), {
+    headers: { "Cache-Control": "no-store" },
+  });
 }
 
 export async function POST(request: NextRequest) {
+  const rejection = requireAgentWrite(request);
+  if (rejection) return rejection;
   const body = (await request.json()) as { kind?: string; data?: unknown };
 
   if (body.kind === "node") {

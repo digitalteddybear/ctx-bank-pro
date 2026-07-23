@@ -3,43 +3,68 @@
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
-  Bell,
   Boxes,
-  CheckCircle2,
   CircleDot,
   Command,
   Database,
+  FileArchive,
+  FileCheck2,
   FileClock,
   FileText,
-  Gauge,
   GitBranch,
   Home,
   Network,
-  Plus,
-  RotateCcw,
   Search,
-  Settings2,
-  ShieldAlert,
-  Sparkles,
-  Undo2,
+  Server,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BootSequence } from "./boot-sequence";
 import { CommandPalette } from "./command-palette";
+import { DocumentUpload } from "./document-upload";
 import { NeuralGraph } from "./neural-graph";
-import { NodeEditor } from "./node-editor";
 import { NodeInspector } from "./node-inspector";
 import { calculateMetrics, getActiveGraph } from "@/lib/graph/engine";
 import { nodeTypeColors, nodeTypeLabels } from "@/lib/graph/palette";
 import { useGraphStore } from "@/lib/graph/store";
-import type { GraphMetrics, NodeType } from "@/lib/graph/types";
+import type { GraphMetrics, GraphSnapshot, NodeType } from "@/lib/graph/types";
 import { Badge, Button, IconButton, Panel } from "@/components/ui/primitives";
 
 const navItems = [
-  { id: "dashboard", label: "Intelligence dashboard", icon: Home },
+  { id: "dashboard", label: "Knowledge observatory", icon: Home },
   { id: "network", label: "Neural network", icon: Network },
   { id: "sources", label: "Source registry", icon: Database },
 ] as const;
+
+interface DocumentSummary {
+  id: string;
+  originalName: string;
+  extension: string;
+  sizeBytes: number;
+  status: "ready_for_agent" | "processed" | "failed";
+  uploadedAt: string;
+  completedAt?: string;
+  extractedCharacters: number;
+  chunkCount: number;
+  sourceNodeId?: string;
+  error?: string;
+}
+
+interface RuntimeStatus {
+  corpus: {
+    sourceCount: number;
+    textualCount: number;
+    totalBytes: number;
+    indexedAt: string | null;
+    byExtension: Record<string, number>;
+  };
+  ingestion: {
+    total: number;
+    pending: number;
+    processed: number;
+    failed: number;
+  };
+  persistence: string;
+}
 
 function WorldCreatorsMark() {
   return (
@@ -89,45 +114,39 @@ function MetricCard({
   );
 }
 
-function HealthBar({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number;
-  color: string;
-}) {
-  return (
-    <div className="health-row">
-      <div>
-        <span>{label}</span>
-        <strong>{value}%</strong>
-      </div>
-      <div className="health-track">
-        <motion.span
-          initial={{ width: 0 }}
-          animate={{ width: `${value}%` }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          style={{ backgroundColor: color }}
-        />
-      </div>
-    </div>
-  );
+function formatTimestamp(value: string | null | undefined) {
+  if (!value) return "Awaiting sync";
+  return new Intl.DateTimeFormat("en", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatBytes(value: number) {
+  if (!value) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const power = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  return `${(value / 1024 ** power).toFixed(power > 1 ? 1 : 0)} ${units[power]}`;
 }
 
 function DashboardView({
   metrics,
-  onGraphReady,
+  runtime,
+  documents,
 }: {
   metrics: GraphMetrics;
-  onGraphReady: () => void;
+  runtime: RuntimeStatus | null;
+  documents: DocumentSummary[];
 }) {
   const snapshot = useGraphStore((state) => state.snapshot);
   const setViewMode = useGraphStore((state) => state.setViewMode);
   const selectNode = useGraphStore((state) => state.selectNode);
+  const syncState = useGraphStore((state) => state.syncState);
+  const lastSyncedAt = useGraphStore((state) => state.lastSyncedAt);
   const active = getActiveGraph(snapshot);
-  const authoritative = active.nodes.filter((node) => node.authority === "primary").length;
+  const pendingDocuments = documents.filter((document) => document.status === "ready_for_agent");
 
   return (
     <motion.main
@@ -138,100 +157,106 @@ function DashboardView({
     >
       <div className="workspace-heading">
         <div>
-          <div className="eyebrow">Knowledge intelligence</div>
-          <h1>Good evening, World Creators.</h1>
-          <p>The network is indexed, responsive, and ready for exploration.</p>
+          <div className="eyebrow">Agent-maintained knowledge system</div>
+          <h1>Knowledge base observatory</h1>
+          <p>Read-only visibility into the graph, source corpus, ingestion queue and agent activity.</p>
         </div>
         <div className="workspace-heading__actions">
-          <Badge tone="success">
-            <span className="status-pulse" />
-            Network healthy
-          </Badge>
           <Button variant="secondary" onClick={() => setViewMode("network")}>
-            Open network
+            Explore network
             <Network size={15} />
           </Button>
         </div>
       </div>
 
-      <section className="metric-grid" aria-label="Knowledge network metrics">
+      <section className="metric-grid" aria-label="Knowledge base status">
         <MetricCard
-          label="Active knowledge"
+          label="Graph knowledge"
           value={metrics.activeNodes}
-          detail={`${authoritative} primary-authority nodes`}
+          detail="Active semantic nodes"
           icon={CircleDot}
-          accent="#9B8BFF"
+          accent="#71D0E7"
         />
         <MetricCard
           label="Relationships"
           value={metrics.relationships}
-          detail="Typed, traversable connections"
+          detail="Typed traversal paths"
           icon={GitBranch}
           accent="#5ED5C8"
         />
         <MetricCard
-          label="Source coverage"
-          value={`${metrics.sourceCoveragePercent}%`}
-          detail="Records with traceable provenance"
-          icon={FileText}
+          label="Indexed filebase"
+          value={runtime?.corpus.sourceCount ?? "—"}
+          detail={`${runtime?.corpus.textualCount ?? 0} directly text-readable`}
+          icon={FileArchive}
           accent="#71B8FF"
         />
         <MetricCard
-          label="Review queue"
-          value={metrics.pendingReview}
-          detail={metrics.conflicts ? `${metrics.conflicts} unresolved conflicts` : "No active conflicts"}
-          icon={ShieldAlert}
+          label="Agent ingestion queue"
+          value={runtime?.ingestion.pending ?? pendingDocuments.length}
+          detail={`${runtime?.ingestion.processed ?? 0} uploads processed`}
+          icon={FileClock}
           accent="#F6B55D"
         />
       </section>
 
-      <section className="dashboard-grid">
+      <section className="dashboard-grid dashboard-grid--observatory">
         <Panel className="network-preview">
           <div className="panel-heading panel-heading--overlay">
             <div>
-              <div className="section-label">Live topology</div>
+              <div className="section-label">Live backend topology</div>
               <h2>Neural field</h2>
             </div>
             <div className="panel-heading__meta">
-              <span><i className="live-dot" /> Live</span>
               <button onClick={() => setViewMode("network")}>Expand</button>
             </div>
           </div>
-          <NeuralGraph compact onReady={onGraphReady} />
+          <NeuralGraph compact />
           <div className="network-preview__footer">
-            <span>{metrics.activeNodes} nodes rendered</span>
-            <span>WebGL accelerated</span>
+            <span>{metrics.activeNodes} nodes · {metrics.relationships} relationships</span>
+            <span>Backend snapshot {formatTimestamp(snapshot.generatedAt)}</span>
           </div>
         </Panel>
 
-        <div className="dashboard-side">
-          <Panel className="health-panel">
+        <div className="dashboard-side dashboard-side--observatory">
+          <Panel className="runtime-panel">
             <div className="panel-heading">
               <div>
-                <div className="section-label">Network health</div>
-                <h2>Integrity signal</h2>
+                <div className="section-label">Runtime</div>
+                <h2>Dynamic graph projection</h2>
               </div>
-              <Gauge size={17} />
+              <Server size={17} />
             </div>
-            <div className="health-score">
-              <strong>{Math.round((metrics.verifiedPercent + metrics.sourceCoveragePercent) / 2)}</strong>
-              <span>/ 100</span>
-            </div>
-            <HealthBar label="Knowledge verified" value={metrics.verifiedPercent} color="#72D8A2" />
-            <HealthBar label="Source coverage" value={metrics.sourceCoveragePercent} color="#71B8FF" />
-            <HealthBar label="Relationship integrity" value={96} color="#9B8BFF" />
+            <dl className="runtime-facts">
+              <div>
+                <dt>Frontend sync</dt>
+                <dd data-state={syncState}>{syncState}</dd>
+              </div>
+              <div>
+                <dt>Last polled</dt>
+                <dd>{formatTimestamp(lastSyncedAt)}</dd>
+              </div>
+              <div>
+                <dt>Persistence</dt>
+                <dd>{runtime?.persistence ?? "file"}</dd>
+              </div>
+              <div>
+                <dt>Corpus size</dt>
+                <dd>{formatBytes(runtime?.corpus.totalBytes ?? 0)}</dd>
+              </div>
+            </dl>
           </Panel>
 
-          <Panel className="activity-panel">
+          <Panel className="activity-panel activity-panel--agent">
             <div className="panel-heading">
               <div>
-                <div className="section-label">Recent activity</div>
-                <h2>Network memory</h2>
+                <div className="section-label">Agent and ingestion activity</div>
+                <h2>Backend change feed</h2>
               </div>
-              <FileClock size={17} />
+              <Activity size={17} />
             </div>
             <div className="activity-list">
-              {snapshot.activities.slice(0, 4).map((item) => (
+              {snapshot.activities.slice(0, 5).map((item) => (
                 <button
                   key={item.id}
                   onClick={() => {
@@ -240,11 +265,11 @@ function DashboardView({
                   }}
                 >
                   <span className={`activity-icon activity-icon--${item.action}`}>
-                    {item.action === "linked" ? <GitBranch size={13} /> : <CheckCircle2 size={13} />}
+                    {item.action === "linked" ? <GitBranch size={13} /> : <FileCheck2 size={13} />}
                   </span>
                   <span>
                     <strong>{item.subjectLabel}</strong>
-                    <small>{item.detail}</small>
+                    <small>{item.actor} · {item.detail}</small>
                   </span>
                 </button>
               ))}
@@ -253,11 +278,11 @@ function DashboardView({
         </div>
       </section>
 
-      <section className="dashboard-bottom">
+      <section className="dashboard-bottom dashboard-bottom--observatory">
         <Panel className="knowledge-distribution">
           <div className="panel-heading">
             <div>
-              <div className="section-label">Ontology</div>
+              <div className="section-label">Ontology coverage</div>
               <h2>Knowledge distribution</h2>
             </div>
             <Boxes size={17} />
@@ -285,30 +310,29 @@ function DashboardView({
           </div>
         </Panel>
 
-        <Panel className="attention-panel">
-          <div className="attention-panel__glow" />
-          <div className="section-label">Operator attention</div>
-          <h2>Evidence before expansion.</h2>
+        <Panel className="ingestion-panel">
+          <div className="panel-heading">
+            <div>
+              <div className="section-label">RAG workflow</div>
+              <h2>Document ingestion</h2>
+            </div>
+            <FileArchive size={17} />
+          </div>
           <p>
-            The commercial evidence gap remains the network’s highest-value open decision.
-            Resolve it before promoting hypotheses into verified claims.
+            Human uploads are extracted and chunked on this host. Agents read the queue,
+            derive knowledge and relationships, then complete each ingestion record.
           </p>
-          <button
-            onClick={() => {
-              selectNode("commercial-evidence-gap");
-              setViewMode("network");
-            }}
-          >
-            Review decision
-            <Sparkles size={15} />
-          </button>
+          <div className="ingestion-summary">
+            <span><strong>{runtime?.ingestion.pending ?? 0}</strong> ready for agents</span>
+            <span><strong>{runtime?.ingestion.failed ?? 0}</strong> extraction exceptions</span>
+          </div>
         </Panel>
       </section>
     </motion.main>
   );
 }
 
-function NetworkView({ onGraphReady }: { onGraphReady: () => void }) {
+function NetworkView() {
   const snapshot = useGraphStore((state) => state.snapshot);
   const selectedNodeId = useGraphStore((state) => state.selectedNodeId);
   const selected = snapshot.nodes.find((node) => node.id === selectedNodeId);
@@ -322,7 +346,7 @@ function NetworkView({ onGraphReady }: { onGraphReady: () => void }) {
     >
       <div className="network-canvas-heading">
         <div>
-          <div className="eyebrow">Live knowledge topology</div>
+          <div className="eyebrow">Agent-maintained topology</div>
           <h1>{selected?.label ?? "World Creators network"}</h1>
         </div>
         <button className="network-search" onClick={() => setCommandOpen(true)}>
@@ -332,7 +356,7 @@ function NetworkView({ onGraphReady }: { onGraphReady: () => void }) {
         </button>
       </div>
       <div className="network-stage">
-        <NeuralGraph onReady={onGraphReady} />
+        <NeuralGraph />
         <div className="network-legend">
           {(["framework", "offer", "system", "source", "claim"] as NodeType[]).map((type) => (
             <span key={type}>
@@ -346,7 +370,7 @@ function NetworkView({ onGraphReady }: { onGraphReady: () => void }) {
   );
 }
 
-function SourcesView() {
+function SourcesView({ documents }: { documents: DocumentSummary[] }) {
   const snapshot = useGraphStore((state) => state.snapshot);
   const selectNode = useGraphStore((state) => state.selectNode);
   const setViewMode = useGraphStore((state) => state.setViewMode);
@@ -360,18 +384,63 @@ function SourcesView() {
     >
       <div className="workspace-heading">
         <div>
-          <div className="eyebrow">Evidence layer</div>
+          <div className="eyebrow">Evidence and ingestion</div>
           <h1>Source registry</h1>
-          <p>Trace every active claim, framework, and process to its underlying evidence.</p>
+          <p>Inspect uploaded evidence and trace graph knowledge back to source material.</p>
         </div>
-        <Badge tone="cyan">{sourceNodes.length} indexed sources</Badge>
+        <Badge tone="cyan">{documents.length} uploaded documents</Badge>
       </div>
+
+      {documents.length > 0 && (
+        <Panel className="document-inbox">
+          <div className="panel-heading">
+            <div>
+              <div className="section-label">Human-supplied evidence</div>
+              <h2>Agent ingestion inbox</h2>
+            </div>
+            <FileClock size={17} />
+          </div>
+          <div className="document-inbox__list">
+            {documents.map((document) => (
+              <button
+                key={document.id}
+                disabled={!document.sourceNodeId}
+                onClick={() => {
+                  if (!document.sourceNodeId) return;
+                  selectNode(document.sourceNodeId);
+                  setViewMode("network");
+                }}
+              >
+                <FileText size={16} />
+                <span>
+                  <strong>{document.originalName}</strong>
+                  <small>
+                    {document.chunkCount} chunks · {formatBytes(document.sizeBytes)} ·{" "}
+                    {formatTimestamp(document.uploadedAt)}
+                  </small>
+                </span>
+                <Badge
+                  tone={
+                    document.status === "processed"
+                      ? "success"
+                      : document.status === "failed"
+                        ? "danger"
+                        : "warning"
+                  }
+                >
+                  {document.status.replaceAll("_", " ")}
+                </Badge>
+              </button>
+            ))}
+          </div>
+        </Panel>
+      )}
 
       <Panel className="source-table">
         <div className="source-table__head">
-          <span>Source</span>
+          <span>Graph source</span>
           <span>Authority</span>
-          <span>Coverage</span>
+          <span>Connections</span>
           <span>Status</span>
           <span />
         </div>
@@ -396,10 +465,7 @@ function SourcesView() {
                 </span>
               </span>
               <span className="source-table__authority">{node.authority}</span>
-              <span className="source-table__coverage">
-                <i><span style={{ width: `${Math.min(100, 42 + linked * 9)}%` }} /></i>
-                {linked} links
-              </span>
+              <span className="source-table__coverage">{linked} typed links</span>
               <span>
                 <Badge tone={node.status === "verified" ? "success" : "warning"}>
                   {node.status}
@@ -419,14 +485,51 @@ export function KnowledgeApp() {
   const viewMode = useGraphStore((state) => state.viewMode);
   const setViewMode = useGraphStore((state) => state.setViewMode);
   const setCommandOpen = useGraphStore((state) => state.setCommandOpen);
-  const openCreateNode = useGraphStore((state) => state.openCreateNode);
-  const undoLastMutation = useGraphStore((state) => state.undoLastMutation);
-  const resetGraph = useGraphStore((state) => state.resetGraph);
-  const lastMutation = useGraphStore((state) => state.lastMutation);
+  const setSnapshot = useGraphStore((state) => state.setSnapshot);
+  const setSyncState = useGraphStore((state) => state.setSyncState);
+  const syncState = useGraphStore((state) => state.syncState);
+  const lastSyncedAt = useGraphStore((state) => state.lastSyncedAt);
   const [booted, setBooted] = useState(false);
   const [bootProgress, setBootProgress] = useState(0);
+  const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
+  const [documents, setDocuments] = useState<DocumentSummary[]>([]);
 
   const metrics = useMemo(() => calculateMetrics(snapshot), [snapshot]);
+
+  const syncBackend = useCallback(async () => {
+    try {
+      const [graphResponse, statusResponse, documentsResponse] = await Promise.all([
+        fetch("/api/graph", { cache: "no-store" }),
+        fetch("/api/status", { cache: "no-store" }),
+        fetch("/api/documents", { cache: "no-store" }),
+      ]);
+      if (!graphResponse.ok || !statusResponse.ok || !documentsResponse.ok) {
+        throw new Error("Backend sync failed");
+      }
+      const [graph, status, ingestionDocuments] = await Promise.all([
+        graphResponse.json() as Promise<GraphSnapshot>,
+        statusResponse.json() as Promise<RuntimeStatus>,
+        documentsResponse.json() as Promise<DocumentSummary[]>,
+      ]);
+      setSnapshot(graph);
+      setRuntime(status);
+      setDocuments(ingestionDocuments);
+    } catch {
+      setSyncState("error");
+    }
+  }, [setSnapshot, setSyncState]);
+
+  useEffect(() => {
+    const initialSync = window.setTimeout(() => void syncBackend(), 0);
+    const interval = window.setInterval(() => void syncBackend(), 4_000);
+    const onFocus = () => void syncBackend();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearTimeout(initialSync);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [syncBackend]);
 
   useEffect(() => {
     let frame = 0;
@@ -448,18 +551,10 @@ export function KnowledgeApp() {
         event.preventDefault();
         setCommandOpen(true);
       }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && lastMutation) {
-        event.preventDefault();
-        undoLastMutation();
-      }
-      if (event.key.toLowerCase() === "n" && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        const target = event.target as HTMLElement;
-        if (!["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) openCreateNode();
-      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [lastMutation, openCreateNode, setCommandOpen, undoLastMutation]);
+  }, [setCommandOpen]);
 
   return (
     <>
@@ -482,15 +577,6 @@ export function KnowledgeApp() {
               );
             })}
           </nav>
-          <div className="rail__bottom">
-            <IconButton label="Network settings">
-              <Settings2 size={18} />
-            </IconButton>
-            <button className="operator-avatar" aria-label="Knowledge operator">
-              WC
-              <span />
-            </button>
-          </div>
         </aside>
 
         <header className="topbar">
@@ -505,31 +591,21 @@ export function KnowledgeApp() {
             <kbd><Command size={11} /> K</kbd>
           </button>
           <div className="topbar__actions">
-            {lastMutation && (
-              <IconButton label="Undo last change" onClick={undoLastMutation}>
-                <Undo2 size={17} />
-              </IconButton>
-            )}
-            <IconButton label="Reset local graph" onClick={resetGraph}>
-              <RotateCcw size={17} />
-            </IconButton>
-            <IconButton label="Notifications">
-              <Bell size={17} />
-              <span className="notification-dot" />
-            </IconButton>
-            <Button size="sm" onClick={openCreateNode}>
-              <Plus size={15} />
-              Add knowledge
-            </Button>
+            <span className="backend-sync" data-state={syncState}>
+              <i />
+              {syncState === "live" ? `Synced ${formatTimestamp(lastSyncedAt)}` : syncState}
+            </span>
+            <DocumentUpload onComplete={syncBackend} />
           </div>
         </header>
 
-        {viewMode === "dashboard" && <DashboardView metrics={metrics} onGraphReady={() => undefined} />}
-        {viewMode === "network" && <NetworkView onGraphReady={() => undefined} />}
-        {viewMode === "sources" && <SourcesView />}
+        {viewMode === "dashboard" && (
+          <DashboardView metrics={metrics} runtime={runtime} documents={documents} />
+        )}
+        {viewMode === "network" && <NetworkView />}
+        {viewMode === "sources" && <SourcesView documents={documents} />}
 
         <NodeInspector />
-        <NodeEditor />
         <CommandPalette />
       </div>
     </>

@@ -31,21 +31,17 @@ page.on("console", (message) => {
 });
 
 await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 30_000 });
-await page.getByRole("heading", { name: /Good evening, World Creators/i }).waitFor();
+await page.getByRole("heading", { name: "Knowledge base observatory" }).waitFor();
 await page.locator(".graph-loading").waitFor({ state: "hidden", timeout: 10_000 });
-const dashboardVisible = await page.getByText("Knowledge intelligence").isVisible();
+const dashboardVisible = await page.getByText("Agent-maintained knowledge system").isVisible();
 await page.screenshot({
   path: path.join(outputDirectory, "dashboard.png"),
   fullPage: true,
 });
 
-await page.getByRole("button", { name: "Add knowledge" }).click();
-await page.getByLabel("Node name").fill("Visual QA Node");
-await page
-  .getByLabel("Description")
-  .fill("A temporary knowledge node created to validate the complete editing workflow.");
-await page.getByRole("button", { name: "Create node" }).click();
-await page.getByRole("heading", { name: "Visual QA Node" }).waitFor();
+await page.getByRole("button", { name: "Add documentation" }).click();
+await page.getByRole("heading", { name: "Add source documentation" }).waitFor();
+await page.getByRole("button", { name: "Close upload" }).click();
 
 await page.keyboard.press("Meta+K");
 await page.getByPlaceholder(/Search frameworks/i).fill("Bulletproof Offer");
@@ -62,7 +58,9 @@ const report = {
   title: await page.title(),
   dashboardVisible,
   graphCanvasCount: await page.locator("canvas").count(),
-  nodeCreationVerified: true,
+  documentUploadAvailable: await page.getByRole("button", { name: "Add documentation" }).isVisible(),
+  humanKnowledgeMutationControls:
+    (await page.getByRole("button", { name: /Add knowledge|Edit|Deprecate|Remove node|Connect/i }).count()),
   commandSearchVerified: true,
   inspectorVerified: await page.getByText("Knowledge integrity").isVisible(),
   pageErrors,
@@ -72,6 +70,11 @@ const report = {
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
-if (pageErrors.length || consoleErrors.length || report.graphCanvasCount < 1) {
+if (
+  pageErrors.length ||
+  consoleErrors.length ||
+  report.graphCanvasCount < 1 ||
+  report.humanKnowledgeMutationControls > 0
+) {
   process.exitCode = 1;
 }

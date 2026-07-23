@@ -1,4 +1,5 @@
 const baseUrl = process.env.QA_BASE_URL ?? "http://127.0.0.1:3000";
+const agentToken = process.env.AGENT_WRITE_TOKEN;
 
 async function request(path, options) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -17,9 +18,26 @@ async function request(path, options) {
 
 const health = await request("/api/health");
 if (health.status !== "healthy") throw new Error("Health endpoint did not report healthy");
+const status = await request("/api/status");
+if (!status.corpus || !status.ingestion) throw new Error("Status endpoint is incomplete");
+
+const unauthorized = await fetch(`${baseUrl}/api/graph`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ kind: "node", data: {} }),
+});
+if (unauthorized.status !== 401 && unauthorized.status !== 403) {
+  throw new Error(`Unauthenticated graph write returned ${unauthorized.status}`);
+}
+if (!agentToken) {
+  throw new Error("AGENT_WRITE_TOKEN is required to run the agent mutation lifecycle QA");
+}
+
+const agentHeaders = { "x-agent-token": agentToken };
 
 const created = await request("/api/graph", {
   method: "POST",
+  headers: agentHeaders,
   body: JSON.stringify({
     kind: "node",
     data: {
@@ -34,6 +52,7 @@ const created = await request("/api/graph", {
 
 const updated = await request(`/api/graph/${created.id}`, {
   method: "PATCH",
+  headers: agentHeaders,
   body: JSON.stringify({
     description: "An updated recoverable test record validating graph mutation integrity.",
     confidence: 0.88,
@@ -43,6 +62,7 @@ if (updated.confidence !== 0.88) throw new Error("Node update was not persisted"
 
 const linked = await request("/api/graph", {
   method: "POST",
+  headers: agentHeaders,
   body: JSON.stringify({
     kind: "link",
     data: {
@@ -65,18 +85,28 @@ if (!detail.neighborhood.links.some((link) => link.id === linked.id)) {
   throw new Error("Created relationship was not traversable");
 }
 
-const removed = await request(`/api/graph/${created.id}`, { method: "DELETE" });
+const removed = await request(`/api/graph/${created.id}`, {
+  method: "DELETE",
+  headers: agentHeaders,
+});
 if (!removed.recoverable) throw new Error("Delete operation was not recoverable");
 
-const restored = await request(`/api/graph/${created.id}/restore`, { method: "POST" });
+const restored = await request(`/api/graph/${created.id}/restore`, {
+  method: "POST",
+  headers: agentHeaders,
+});
 if (restored.deletedAt) throw new Error("Restore operation did not reactivate the node");
 
-await request(`/api/graph/${created.id}`, { method: "DELETE" });
+await request(`/api/graph/${created.id}`, {
+  method: "DELETE",
+  headers: agentHeaders,
+});
 
 console.log(
   JSON.stringify(
     {
       health: health.status,
+      unauthenticatedWritesBlocked: true,
       created: true,
       updated: true,
       linked: true,

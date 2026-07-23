@@ -12,7 +12,9 @@ import type {
   NodePatch,
 } from "@/lib/graph/types";
 
-const runtimePath = path.join(process.cwd(), "data", "runtime-graph.json");
+const runtimePath =
+  process.env.GRAPH_RUNTIME_PATH ??
+  path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "runtime-graph.json");
 const persistToDisk = process.env.GRAPH_PERSISTENCE !== "memory";
 
 const timestamp = () => new Date().toISOString();
@@ -20,14 +22,19 @@ const identifier = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 
 let memorySnapshot: GraphSnapshot | null = null;
 let writeQueue = Promise.resolve();
+let diskSignature = "";
 
 async function loadSnapshot(): Promise<GraphSnapshot> {
-  if (memorySnapshot) return structuredClone(memorySnapshot);
-
   if (persistToDisk) {
     try {
+      const stats = await fs.stat(runtimePath);
+      const signature = `${stats.mtimeMs}:${stats.size}`;
+      if (memorySnapshot && signature === diskSignature) {
+        return structuredClone(memorySnapshot);
+      }
       const raw = await fs.readFile(runtimePath, "utf8");
       memorySnapshot = JSON.parse(raw) as GraphSnapshot;
+      diskSignature = signature;
       return structuredClone(memorySnapshot);
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
@@ -35,6 +42,7 @@ async function loadSnapshot(): Promise<GraphSnapshot> {
     }
   }
 
+  if (memorySnapshot) return structuredClone(memorySnapshot);
   memorySnapshot = structuredClone(initialGraph);
   return structuredClone(memorySnapshot);
 }
@@ -48,6 +56,8 @@ async function saveSnapshot(snapshot: GraphSnapshot) {
     const temporary = `${runtimePath}.tmp`;
     await fs.writeFile(temporary, JSON.stringify(snapshot, null, 2), "utf8");
     await fs.rename(temporary, runtimePath);
+    const stats = await fs.stat(runtimePath);
+    diskSignature = `${stats.mtimeMs}:${stats.size}`;
   });
   await writeQueue;
 }

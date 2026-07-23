@@ -156,7 +156,7 @@ export function NeuralGraph({
           const active =
             selectedNodeId &&
             (endpointId(link.source) === selectedNodeId || endpointId(link.target) === selectedNodeId);
-          return active ? "rgba(155, 139, 255, 0.82)" : "rgba(126, 147, 179, 0.22)";
+          return active ? "rgba(113, 208, 231, 0.82)" : "rgba(126, 147, 179, 0.22)";
         }}
         linkWidth={(link) => {
           const active =
@@ -173,7 +173,7 @@ export function NeuralGraph({
         }}
         linkDirectionalParticleWidth={1.15}
         linkDirectionalParticleSpeed={0.004}
-        linkDirectionalParticleColor={() => "#C4BBFF"}
+        linkDirectionalParticleColor={() => "#A8E9F6"}
         d3AlphaDecay={0.025}
         d3VelocityDecay={0.35}
         warmupTicks={compact ? 45 : 70}

@@ -2,11 +2,11 @@ import type { NodeStatus, NodeType } from "./types";
 
 export const nodeTypeColors: Record<NodeType, string> = {
   organization: "#F7F8FC",
-  framework: "#8B7CFF",
-  process: "#7D9CFF",
-  stage: "#B7AFFF",
+  framework: "#71D0E7",
+  process: "#4CBBD8",
+  stage: "#9BE4F2",
   system: "#5ED5C8",
-  offer: "#D184FF",
+  offer: "#5BCDE5",
   audience: "#F6B55D",
   concept: "#6EE7F2",
   claim: "#F091B8",
@@ -20,7 +20,7 @@ export const nodeTypeColors: Record<NodeType, string> = {
 export const nodeStatusColors: Record<NodeStatus, string> = {
   verified: "#72D8A2",
   hypothesis: "#F6B55D",
-  review: "#7D9CFF",
+  review: "#4CBBD8",
   conflicted: "#FF6B7A",
   deprecated: "#687386",
 };

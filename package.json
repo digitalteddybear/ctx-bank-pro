@@ -13,6 +13,8 @@
     "test": "npm run typecheck && npm run lint",
     "ingest": "tsx scripts/ingest-world-creators.ts",
     "mcp": "tsx mcp/server.ts",
+    "qa:mcp": "node scripts/mcp-qa.mjs",
+    "qa:sync": "node scripts/live-sync-qa.mjs",
     "qa:visual": "node scripts/visual-qa.mjs",
     "qa:api": "node scripts/api-qa.mjs"
   },
@@ -20,6 +22,7 @@
     "@modelcontextprotocol/sdk": "^1.17.5",
     "fuse.js": "^7.1.0",
     "lucide-react": "^0.468.0",
+    "mammoth": "^1.12.0",
     "motion": "^12.23.12",
     "next": "^16.2.0",
     "react": "^19.2.0",
@@ -27,6 +30,7 @@
     "react-force-graph-3d": "^1.29.0",
     "three": "^0.179.1",
     "three-spritetext": "^1.10.0",
+    "unpdf": "^1.6.2",
     "zod": "^4.1.5",
     "zustand": "^5.0.8"
   },

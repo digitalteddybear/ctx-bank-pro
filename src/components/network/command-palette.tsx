@@ -94,7 +94,7 @@ export function CommandPalette() {
           ))}
           {!results.length && (
             <div className="command-empty">
-              No knowledge matched this query. Create a new node from the main toolbar.
+              No indexed knowledge matched this query.
             </div>
           )}
         </div>

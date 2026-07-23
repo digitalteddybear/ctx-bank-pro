@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { graphRepository } from "../src/lib/server/persistent-repository";
+import { documentRepository } from "../src/lib/server/document-repository";
 import {
   AUTHORITY_LEVELS,
   EDGE_TYPES,
@@ -86,6 +87,86 @@ server.registerTool(
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   async () => result(await graphRepository.metrics()),
+);
+
+server.registerTool(
+  "list_ingestion_documents",
+  {
+    title: "List uploaded documents",
+    description:
+      "List documents uploaded by a human, including extraction status, source-node identity, and RAG chunk count.",
+    inputSchema: {
+      status: z.enum(["ready_for_agent", "processed", "failed"]).optional(),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ status }) => {
+    const documents = await documentRepository.list();
+    return result(
+      documents
+        .filter((document) => !status || document.status === status)
+        .map(({ chunks, ...document }) => ({ ...document, chunkCount: chunks.length })),
+    );
+  },
+);
+
+server.registerTool(
+  "read_document_chunks",
+  {
+    title: "Read uploaded document chunks",
+    description:
+      "Read extraction-ready RAG chunks from an uploaded document before deriving or updating graph knowledge.",
+    inputSchema: {
+      documentId: z.string(),
+      offset: z.number().int().min(0).default(0),
+      limit: z.number().int().min(1).max(25).default(8),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ documentId, offset, limit }) => {
+    const document = await documentRepository.get(documentId);
+    if (!document) return result({ error: "Document not found", documentId });
+    return result({
+      document: {
+        id: document.id,
+        originalName: document.originalName,
+        status: document.status,
+        sourceNodeId: document.sourceNodeId,
+        extractedCharacters: document.extractedCharacters,
+        chunkCount: document.chunks.length,
+      },
+      offset,
+      chunks: document.chunks.slice(offset, offset + limit),
+      hasMore: offset + limit < document.chunks.length,
+    });
+  },
+);
+
+server.registerTool(
+  "complete_document_ingestion",
+  {
+    title: "Complete document ingestion",
+    description:
+      "Mark an uploaded document as processed after creating or updating its derived knowledge nodes and relationships.",
+    inputSchema: {
+      documentId: z.string(),
+      summary: z.string().min(10).max(2000),
+      derivedNodeIds: z.array(z.string()).max(200).default([]),
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  async ({ documentId, summary, derivedNodeIds }) =>
+    result(
+      (await documentRepository.complete(documentId, { summary, derivedNodeIds })) ?? {
+        error: "Document not found",
+        documentId,
+      },
+    ),
 );
 
 server.registerTool(
