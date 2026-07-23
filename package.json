@@ -6,7 +6,7 @@
   "description": "A live, agent-operable knowledge graph for the World Creators knowledge base.",
   "scripts": {
     "dev": "vinext dev",
-    "build": "vinext build",
+    "build": "node scripts/build.mjs",
     "start": "vinext start",
     "dev:next": "next dev",
     "build:next": "next build",
