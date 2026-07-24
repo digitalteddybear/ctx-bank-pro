@@ -68,6 +68,36 @@ const report = {
   consoleErrors,
 };
 
+await page.goto(`${baseUrl}/extension`, { waitUntil: "networkidle", timeout: 30_000 });
+await page.getByRole("heading", { name: "Knowledge Network extension" }).waitFor();
+const extensionDocsVerified =
+  (await page.getByRole("heading", { name: "MCP tools" }).count()) === 0 &&
+  (await page.getByRole("heading", { name: "Read tools" }).isVisible()) &&
+  (await page.getByText("14", { exact: true }).first().isVisible()) &&
+  (await page.getByRole("link", { name: "Open graph" }).isVisible());
+await page.screenshot({
+  path: path.join(outputDirectory, "extension.png"),
+  fullPage: true,
+});
+
+const mobilePage = await browser.newPage({
+  viewport: { width: 390, height: 844 },
+  deviceScaleFactor: 1,
+  colorScheme: "dark",
+});
+await mobilePage.goto(`${baseUrl}/extension`, { waitUntil: "networkidle", timeout: 30_000 });
+await mobilePage.getByRole("heading", { name: "Knowledge Network extension" }).waitFor();
+const extensionMobileVerified =
+  (await mobilePage.getByRole("link", { name: "Open graph" }).isVisible()) &&
+  (await mobilePage.locator("html").evaluate((element) => element.scrollWidth <= element.clientWidth));
+await mobilePage.screenshot({
+  path: path.join(outputDirectory, "extension-mobile.png"),
+  fullPage: true,
+});
+await mobilePage.close();
+
+report.extensionDocsVerified = extensionDocsVerified;
+report.extensionMobileVerified = extensionMobileVerified;
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -76,7 +106,9 @@ if (
   consoleErrors.length ||
   !report.dashboardVisible ||
   report.graphCanvasCount < 1 ||
-  report.humanKnowledgeMutationControls > 0
+  report.humanKnowledgeMutationControls > 0 ||
+  !report.extensionDocsVerified ||
+  !report.extensionMobileVerified
 ) {
   process.exitCode = 1;
 }

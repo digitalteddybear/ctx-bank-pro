@@ -29,6 +29,11 @@ Open `http://localhost:3000`.
 The application is intentionally dynamic. It requires its Next.js server and
 writable `data/` storage; it is not a static-export application.
 
+Current operator and agent documentation is available at
+`http://localhost:3000/extension`. Update the page content in
+`src/content/extension-docs.ts`; `npm run qa:docs` checks its MCP tool reference
+against the implemented server.
+
 ## Human and agent boundaries
 
 Humans can upload documents through the interface. Uploads are stored under

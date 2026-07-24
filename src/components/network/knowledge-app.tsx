@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
+  BookOpenText,
   Boxes,
   CircleDot,
   Command,
@@ -598,6 +599,9 @@ export function KnowledgeApp() {
                 </IconButton>
               );
             })}
+            <a className="icon-button" href="/extension" aria-label="Extension documentation" title="Extension documentation">
+              <BookOpenText size={18} />
+            </a>
           </nav>
         </aside>
 
