@@ -35,6 +35,9 @@ export function KnowledgeGraph2D() {
   const edgeElementsRef = useRef(new Map<string, SVGPathElement>());
   const canvasSizeRef = useRef<CanvasSize>({ width: 1200, height: 760 });
   const zoomRef = useRef(1);
+  const targetZoomRef = useRef(1);
+  const zoomAnimationRef = useRef<number | null>(null);
+  const zoomAnchorRef = useRef({ x: 0, y: 0, graphX: 0, graphY: 0 });
   const pathStartRef = useRef<string | null>(null);
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const snapshot = useGraphStore((state) => state.snapshot);
@@ -72,24 +75,52 @@ export function KnowledgeGraph2D() {
     zoomRef.current = zoom;
   }, [zoom]);
 
-  const zoomAtPoint = useCallback((requestedZoom: number, x: number, y: number) => {
+  const animateZoomAtPoint = useCallback((requestedZoom: number, x: number, y: number) => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const currentZoom = zoomRef.current;
-    const nextZoom = clampZoom(requestedZoom);
-    if (Math.abs(nextZoom - currentZoom) < 0.001) return;
+    targetZoomRef.current = clampZoom(requestedZoom);
+    zoomAnchorRef.current = {
+      x,
+      y,
+      graphX: (viewport.scrollLeft + x) / currentZoom,
+      graphY: (viewport.scrollTop + y) / currentZoom,
+    };
+    if (zoomAnimationRef.current !== null) return;
 
-    const graphX = (viewport.scrollLeft + x) / currentZoom;
-    const graphY = (viewport.scrollTop + y) / currentZoom;
-    zoomRef.current = nextZoom;
-    setZoom(nextZoom);
+    const step = () => {
+      const activeViewport = viewportRef.current;
+      const svg = svgRef.current;
+      if (!activeViewport || !svg) {
+        zoomAnimationRef.current = null;
+        return;
+      }
+      const current = zoomRef.current;
+      const target = targetZoomRef.current;
+      const distance = target - current;
+      const nextZoom = Math.abs(distance) < 0.0005
+        ? target
+        : current + distance * 0.24;
+      const size = canvasSizeRef.current;
+      const anchor = zoomAnchorRef.current;
 
-    requestAnimationFrame(() => {
+      zoomRef.current = nextZoom;
+      svg.setAttribute("width", String(size.width * nextZoom));
+      svg.setAttribute("height", String(size.height * nextZoom));
+      setZoom(nextZoom);
       viewport.scrollTo({
-        left: Math.max(0, graphX * nextZoom - x),
-        top: Math.max(0, graphY * nextZoom - y),
+        left: Math.max(0, anchor.graphX * nextZoom - anchor.x),
+        top: Math.max(0, anchor.graphY * nextZoom - anchor.y),
       });
-    });
+
+      if (nextZoom === target) {
+        zoomAnimationRef.current = null;
+      } else {
+        zoomAnimationRef.current = requestAnimationFrame(step);
+      }
+    };
+
+    zoomAnimationRef.current = requestAnimationFrame(step);
   }, []);
 
   const fitGraph = useCallback((size = canvasSizeRef.current, minimumZoom = 0.2) => {
@@ -105,7 +136,12 @@ export function KnowledgeGraph2D() {
         ),
       ),
     );
+    if (zoomAnimationRef.current !== null) {
+      cancelAnimationFrame(zoomAnimationRef.current);
+      zoomAnimationRef.current = null;
+    }
     zoomRef.current = nextZoom;
+    targetZoomRef.current = nextZoom;
     setZoom(nextZoom);
     requestAnimationFrame(() => {
       viewport.scrollTo({
@@ -122,14 +158,13 @@ export function KnowledgeGraph2D() {
     const handleWheel = (event: WheelEvent) => {
       event.preventDefault();
       const rect = viewport.getBoundingClientRect();
-      const lineScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : 1;
-      const pageScale = event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-        ? viewport.clientHeight
-        : 1;
-      const delta = event.deltaY * lineScale * pageScale;
-      const factor = Math.exp(-delta * 0.0016);
-      zoomAtPoint(
-        zoomRef.current * factor,
+      let delta = event.deltaY;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) delta *= 16;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) delta *= viewport.clientHeight;
+      delta = Math.max(-100, Math.min(100, delta));
+      const factor = Math.exp(-delta * 0.0014);
+      animateZoomAtPoint(
+        targetZoomRef.current * factor,
         event.clientX - rect.left,
         event.clientY - rect.top,
       );
@@ -137,7 +172,13 @@ export function KnowledgeGraph2D() {
 
     viewport.addEventListener("wheel", handleWheel, { passive: false });
     return () => viewport.removeEventListener("wheel", handleWheel);
-  }, [zoomAtPoint]);
+  }, [animateZoomAtPoint]);
+
+  useEffect(() => () => {
+    if (zoomAnimationRef.current !== null) {
+      cancelAnimationFrame(zoomAnimationRef.current);
+    }
+  }, []);
 
   const activateNode = useCallback((nodeId: string) => {
     const pathStart = pathStartRef.current;
@@ -319,7 +360,12 @@ export function KnowledgeGraph2D() {
     const element = nodeElementsRef.current.get(selectedNodeId);
     if (!element) return;
     const nextZoom = Math.max(zoomRef.current, 0.78);
+    if (zoomAnimationRef.current !== null) {
+      cancelAnimationFrame(zoomAnimationRef.current);
+      zoomAnimationRef.current = null;
+    }
     zoomRef.current = nextZoom;
+    targetZoomRef.current = nextZoom;
     setZoom(nextZoom);
     requestAnimationFrame(() => {
       element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
@@ -330,8 +376,8 @@ export function KnowledgeGraph2D() {
   const changeZoom = (factor: number) => {
     const viewport = viewportRef.current;
     if (!viewport) return;
-    zoomAtPoint(
-      zoomRef.current * factor,
+    animateZoomAtPoint(
+      targetZoomRef.current * factor,
       viewport.clientWidth / 2,
       viewport.clientHeight / 2,
     );
@@ -359,6 +405,11 @@ export function KnowledgeGraph2D() {
               "[data-node-id], [data-link-id], .edge-paths-hit-test, .edge-labels",
             )
           ) return;
+          if (zoomAnimationRef.current !== null) {
+            cancelAnimationFrame(zoomAnimationRef.current);
+            zoomAnimationRef.current = null;
+            targetZoomRef.current = zoomRef.current;
+          }
           panRef.current = {
             x: event.clientX,
             y: event.clientY,

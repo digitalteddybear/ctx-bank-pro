@@ -29,7 +29,7 @@
   min-height: 100%;
   min-width: 100%;
   text-rendering: geometricPrecision;
-  transition: width 160ms ease, height 160ms ease;
+  will-change: width, height;
 }
 
 .toolbar {

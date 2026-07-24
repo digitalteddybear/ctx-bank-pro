@@ -73,7 +73,9 @@ await page.mouse.move(
 await page.keyboard.down("Control");
 await page.mouse.wheel(0, -320);
 await page.keyboard.up("Control");
-await page.waitForTimeout(250);
+await page.waitForTimeout(40);
+const canvasWidthDuringZoom = (await graphCanvas.boundingBox())?.width ?? 0;
+await page.waitForTimeout(500);
 const canvasWidthAfterZoom = (await graphCanvas.boundingBox())?.width ?? 0;
 const browserScaleAfterZoom = await page.evaluate(() => window.devicePixelRatio);
 
@@ -136,6 +138,9 @@ const report = {
   canvasZoomVerified:
     canvasWidthAfterZoom > canvasWidthBeforeZoom &&
     browserScaleAfterZoom === browserScaleBeforeZoom,
+  progressiveZoomVerified:
+    canvasWidthDuringZoom > canvasWidthBeforeZoom &&
+    canvasWidthAfterZoom > canvasWidthDuringZoom,
   canvasPanVerified:
     scrollAfterPan.left !== scrollBeforePan.left ||
     scrollAfterPan.top !== scrollBeforePan.top,
@@ -198,6 +203,7 @@ if (
   !report.netronMapVerified ||
   !report.selectedNodeAccessible ||
   !report.canvasZoomVerified ||
+  !report.progressiveZoomVerified ||
   !report.canvasPanVerified ||
   !report.neighborhoodVerified ||
   !report.shortestPathVerified ||
