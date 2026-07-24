@@ -60,6 +60,41 @@ const selectedNodeAccessible =
   (await selectedNode.getAttribute("tabindex")) === "0" &&
   Boolean(await selectedNode.getAttribute("aria-label"));
 
+const graphViewport = page.getByTestId("knowledge-graph-viewport");
+const graphCanvas = page.getByTestId("knowledge-graph-canvas");
+const canvasWidthBeforeZoom = (await graphCanvas.boundingBox())?.width ?? 0;
+const browserScaleBeforeZoom = await page.evaluate(() => window.devicePixelRatio);
+const viewportBox = await graphViewport.boundingBox();
+if (!viewportBox) throw new Error("Knowledge graph viewport has no bounding box.");
+await page.mouse.move(
+  viewportBox.x + viewportBox.width * 0.48,
+  viewportBox.y + viewportBox.height * 0.48,
+);
+await page.keyboard.down("Control");
+await page.mouse.wheel(0, -320);
+await page.keyboard.up("Control");
+await page.waitForTimeout(250);
+const canvasWidthAfterZoom = (await graphCanvas.boundingBox())?.width ?? 0;
+const browserScaleAfterZoom = await page.evaluate(() => window.devicePixelRatio);
+
+const scrollBeforePan = await graphViewport.evaluate((element) => ({
+  left: element.scrollLeft,
+  top: element.scrollTop,
+}));
+await page.mouse.move(viewportBox.x + 24, viewportBox.y + viewportBox.height * 0.55);
+await page.mouse.down();
+await page.mouse.move(
+  viewportBox.x - 96,
+  viewportBox.y + viewportBox.height * 0.55 - 70,
+  { steps: 5 },
+);
+await page.mouse.up();
+await page.waitForTimeout(100);
+const scrollAfterPan = await graphViewport.evaluate((element) => ({
+  left: element.scrollLeft,
+  top: element.scrollTop,
+}));
+
 await page.getByRole("button", { name: "Focus one-hop neighborhood" }).click();
 await page.waitForTimeout(500);
 const neighborhoodNodeCount =
@@ -98,6 +133,12 @@ const report = {
   netronSemanticNodes: semanticNodeCount,
   netronSemanticLinks: semanticLinkCount,
   selectedNodeAccessible,
+  canvasZoomVerified:
+    canvasWidthAfterZoom > canvasWidthBeforeZoom &&
+    browserScaleAfterZoom === browserScaleBeforeZoom,
+  canvasPanVerified:
+    scrollAfterPan.left !== scrollBeforePan.left ||
+    scrollAfterPan.top !== scrollBeforePan.top,
   neighborhoodVerified:
     neighborhoodNodeCount > 0 && neighborhoodNodeCount < semanticNodeCount,
   shortestPathVerified: pathHighlightedNodeCount >= 2,
@@ -156,6 +197,8 @@ if (
   !report.dashboardVisible ||
   !report.netronMapVerified ||
   !report.selectedNodeAccessible ||
+  !report.canvasZoomVerified ||
+  !report.canvasPanVerified ||
   !report.neighborhoodVerified ||
   !report.shortestPathVerified ||
   !report.rendererSwitchVerified ||

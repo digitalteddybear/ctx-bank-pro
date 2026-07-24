@@ -14,6 +14,7 @@
   position: relative;
   scrollbar-color: color-mix(in srgb, var(--foreground) 14%, transparent) transparent;
   scrollbar-width: thin;
+  touch-action: none;
   width: 100%;
 }
 

@@ -25,6 +25,7 @@ interface CanvasSize {
 }
 
 const safeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, "-");
+const clampZoom = (value: number) => Math.min(2.4, Math.max(0.2, value));
 
 export function KnowledgeGraph2D() {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -33,6 +34,7 @@ export function KnowledgeGraph2D() {
   const nodeElementsRef = useRef(new Map<string, SVGGElement>());
   const edgeElementsRef = useRef(new Map<string, SVGPathElement>());
   const canvasSizeRef = useRef<CanvasSize>({ width: 1200, height: 760 });
+  const zoomRef = useRef(1);
   const pathStartRef = useRef<string | null>(null);
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const snapshot = useGraphStore((state) => state.snapshot);
@@ -66,6 +68,30 @@ export function KnowledgeGraph2D() {
     canvasSizeRef.current = canvasSize;
   }, [canvasSize]);
 
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  const zoomAtPoint = useCallback((requestedZoom: number, x: number, y: number) => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const currentZoom = zoomRef.current;
+    const nextZoom = clampZoom(requestedZoom);
+    if (Math.abs(nextZoom - currentZoom) < 0.001) return;
+
+    const graphX = (viewport.scrollLeft + x) / currentZoom;
+    const graphY = (viewport.scrollTop + y) / currentZoom;
+    zoomRef.current = nextZoom;
+    setZoom(nextZoom);
+
+    requestAnimationFrame(() => {
+      viewport.scrollTo({
+        left: Math.max(0, graphX * nextZoom - x),
+        top: Math.max(0, graphY * nextZoom - y),
+      });
+    });
+  }, []);
+
   const fitGraph = useCallback((size = canvasSizeRef.current, minimumZoom = 0.2) => {
     const viewport = viewportRef.current;
     if (!viewport || !size.width || !size.height) return;
@@ -79,6 +105,7 @@ export function KnowledgeGraph2D() {
         ),
       ),
     );
+    zoomRef.current = nextZoom;
     setZoom(nextZoom);
     requestAnimationFrame(() => {
       viewport.scrollTo({
@@ -87,6 +114,30 @@ export function KnowledgeGraph2D() {
       });
     });
   }, []);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const rect = viewport.getBoundingClientRect();
+      const lineScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : 1;
+      const pageScale = event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? viewport.clientHeight
+        : 1;
+      const delta = event.deltaY * lineScale * pageScale;
+      const factor = Math.exp(-delta * 0.0016);
+      zoomAtPoint(
+        zoomRef.current * factor,
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+      );
+    };
+
+    viewport.addEventListener("wheel", handleWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", handleWheel);
+  }, [zoomAtPoint]);
 
   const activateNode = useCallback((nodeId: string) => {
     const pathStart = pathStartRef.current;
@@ -267,7 +318,9 @@ export function KnowledgeGraph2D() {
     if (!ready || !selectedNodeId) return;
     const element = nodeElementsRef.current.get(selectedNodeId);
     if (!element) return;
-    setZoom((value) => Math.max(value, 0.78));
+    const nextZoom = Math.max(zoomRef.current, 0.78);
+    zoomRef.current = nextZoom;
+    setZoom(nextZoom);
     requestAnimationFrame(() => {
       element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
       element.focus({ preventScroll: true });
@@ -275,7 +328,13 @@ export function KnowledgeGraph2D() {
   }, [ready, selectedNodeId]);
 
   const changeZoom = (factor: number) => {
-    setZoom((value) => Math.min(1.8, Math.max(0.2, value * factor)));
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    zoomAtPoint(
+      zoomRef.current * factor,
+      viewport.clientWidth / 2,
+      viewport.clientHeight / 2,
+    );
   };
 
   const startPath = () => {
@@ -290,6 +349,7 @@ export function KnowledgeGraph2D() {
       <div
         className={styles.viewport}
         ref={viewportRef}
+        data-testid="knowledge-graph-viewport"
         data-panning={panning}
         onPointerDown={(event) => {
           if (event.button !== 0 || !viewportRef.current) return;
@@ -320,15 +380,11 @@ export function KnowledgeGraph2D() {
           setPanning(false);
           event.currentTarget.releasePointerCapture(event.pointerId);
         }}
-        onWheel={(event) => {
-          if (!event.ctrlKey && !event.metaKey) return;
-          event.preventDefault();
-          changeZoom(event.deltaY < 0 ? 1.08 : 0.92);
-        }}
       >
         <svg
           className={styles.canvas}
           ref={svgRef}
+          data-testid="knowledge-graph-canvas"
           width={canvasSize.width * zoom}
           height={canvasSize.height * zoom}
           aria-label="World Creators two-dimensional knowledge map"
