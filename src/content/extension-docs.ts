@@ -16,7 +16,7 @@ export const extensionDocs = {
   scope: {
     provides: [
       "A read-only dashboard for graph counts, source files, ingestion state, and recent graph writes.",
-      "An interactive 3D graph with node search, neighborhood traversal, typed links, and source metadata.",
+      "A deterministic 2D knowledge map and optional 3D spatial graph with search, neighborhood traversal, typed links, and source metadata.",
       "A human upload route that extracts and chunks supported documents for agent processing.",
       "An MCP server that lets agents search, traverse, create, update, link, deprecate, remove, restore, and complete ingestion work.",
       "File-backed persistence for localhost or a stateful VPS.",
@@ -24,7 +24,7 @@ export const extensionDocs = {
     excludes: [
       "The browser cannot create, edit, link, deprecate, remove, or restore graph records.",
       "Uploading a document does not make its extracted claims verified knowledge. An agent must parse the chunks and write derived nodes and links.",
-      "The app does not train a neural network. The 3D view renders a typed knowledge graph.",
+      "The app does not train a neural network. Its 2D and 3D views render the same typed knowledge graph.",
       "The app is not a static export. It requires the Next.js server and writable storage.",
     ],
   },
@@ -62,7 +62,7 @@ export const extensionDocs = {
   ],
   humanWorkflow: [
     "Open the dashboard and check node, link, indexed-file, and pending-document counts.",
-    "Use search or the 3D graph to inspect a record, its sources, and its linked nodes.",
+    "Use search or the 2D knowledge map to inspect a record, its sources, and its linked nodes. Switch to 3D when spatial exploration is useful.",
     "Use Upload document to submit a PDF, DOCX, TXT, Markdown, CSV, HTML, HTM, or RTF file up to 25 MB.",
     "Wait for an agent to process records marked ready_for_agent. The dashboard shows the resulting backend writes.",
   ],
@@ -133,6 +133,7 @@ export const extensionDocs = {
     ["src/app/", "Next.js routes, APIs, global tokens, and the /extension page."],
     ["src/components/network/", "Dashboard, graph, inspector, search, upload, and synchronization UI."],
     ["src/lib/graph/", "Graph types, seed data, search, traversal, metrics, palette, and client state."],
+    ["src/vendor/netron/", "Pinned MIT-licensed Netron graph layout subset and local parallel-link adapter notes."],
     ["src/lib/server/", "Graph persistence, document extraction, authorization, and validation."],
     ["mcp/server.ts", "Agent tool definitions and handlers."],
     ["scripts/", "Corpus indexing and API, MCP, live-sync, and browser QA."],
@@ -146,6 +147,7 @@ export const extensionDocs = {
     ["npm run ingest", "Rebuild the source manifest from the configured World Creators folders."],
     ["npm test", "Run TypeScript and ESLint checks."],
     ["npm run qa:visual", "Verify dashboard, upload, search, graph, inspector, and browser errors."],
+    ["npm run qa:netron", "Verify real, cyclic, parallel-link, and 1,000-node graph layouts."],
     ["npm run qa:api", "Verify authenticated HTTP mutation and recovery. Requires AGENT_WRITE_TOKEN."],
     ["npm run qa:mcp", "Verify MCP document ingestion and graph writes with isolated QA paths."],
     ["npm run qa:sync", "Verify backend writes appear in the browser without a reload."],

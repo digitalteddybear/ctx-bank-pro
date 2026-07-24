@@ -1195,6 +1195,40 @@ kbd {
   margin-left: 10px;
 }
 
+.network-canvas-actions {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+}
+
+.workspace--network:has(+ .inspector) .network-canvas-heading {
+  right: calc(var(--inspector-width) + 24px);
+}
+
+.graph-view-switch {
+  align-items: center;
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  display: flex;
+  padding: 3px;
+}
+
+.graph-view-switch button {
+  background: transparent;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-size: 10px;
+  height: 27px;
+  padding: 0 9px;
+}
+
+.graph-view-switch button[data-active="true"] {
+  background: var(--accent);
+  color: var(--primary);
+}
+
 .network-stage {
   height: calc(100vh - var(--topbar-height));
   position: relative;
@@ -2182,6 +2216,10 @@ kbd {
 
   .inspector {
     width: 340px;
+  }
+
+  .workspace--network:has(+ .inspector) .network-canvas-heading {
+    right: 364px;
   }
 }
 

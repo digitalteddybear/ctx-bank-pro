@@ -1,0 +1,248 @@
+.root {
+  background: var(--background);
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.viewport {
+  cursor: grab;
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  position: relative;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 14%, transparent) transparent;
+  scrollbar-width: thin;
+  width: 100%;
+}
+
+.viewport[data-panning="true"] {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.canvas {
+  display: block;
+  margin: auto;
+  min-height: 100%;
+  min-width: 100%;
+  text-rendering: geometricPrecision;
+  transition: width 160ms ease, height 160ms ease;
+}
+
+.toolbar {
+  align-items: center;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  gap: 3px;
+  left: 18px;
+  padding: 4px;
+  position: absolute;
+  top: 96px;
+  z-index: 8;
+}
+
+.toolbar button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+  width: 30px;
+}
+
+.toolbar button:hover,
+.toolbar button[data-active="true"] {
+  background: var(--accent);
+  color: var(--primary);
+}
+
+.toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.toolbarDivider {
+  background: var(--border);
+  height: 20px;
+  margin: 0 2px;
+  width: 1px;
+}
+
+.modeStatus {
+  align-items: center;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  bottom: 22px;
+  color: var(--muted-foreground);
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  gap: 7px;
+  left: 18px;
+  padding: 8px 10px;
+  position: absolute;
+  z-index: 8;
+}
+
+.modeStatus i {
+  background: var(--primary);
+  border-radius: 50%;
+  height: 5px;
+  width: 5px;
+}
+
+.loading {
+  align-items: center;
+  background: var(--background);
+  color: var(--muted-foreground);
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  inset: 0;
+  justify-content: center;
+  letter-spacing: 0.08em;
+  position: absolute;
+  text-transform: uppercase;
+  z-index: 10;
+}
+
+.root :global(.clusters) {
+  pointer-events: none;
+}
+
+.root :global(.cluster rect) {
+  fill: var(--card);
+  fill-opacity: 0.45;
+  stroke: var(--border);
+  stroke-width: 1px;
+}
+
+.root :global(.node) {
+  outline: none;
+  transition: opacity 140ms ease;
+}
+
+.root :global(.node:focus-visible > .node-border) {
+  stroke: var(--ring);
+  stroke-width: 2px;
+}
+
+.root :global(.node.node-border) {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1px;
+}
+
+.root :global(.node-item path) {
+  fill: var(--card);
+  stroke: none;
+}
+
+.root :global(.knowledge-node-title) {
+  cursor: pointer;
+}
+
+.root :global(.knowledge-node-title path) {
+  fill: color-mix(in srgb, var(--node-color, var(--primary)) 18%, var(--card));
+}
+
+.root :global(.knowledge-node-title text) {
+  fill: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.root :global(.node-argument-list > path) {
+  fill: var(--card);
+  stroke: none;
+}
+
+.root :global(.node-argument > text) {
+  fill: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 400;
+}
+
+.root :global(.node-argument > rect) {
+  fill: transparent;
+}
+
+.root :global(.edge-paths) {
+  pointer-events: none;
+}
+
+.root :global(.edge-path) {
+  fill: none;
+  marker-end: url("#arrowhead");
+  stroke: color-mix(in srgb, var(--muted-foreground) 42%, transparent);
+  stroke-width: 1px;
+}
+
+.root :global(.edge-paths-hit-test) {
+  fill: none;
+  pointer-events: stroke;
+  stroke: transparent;
+  stroke-width: 12px;
+}
+
+.root :global(.edge-label) {
+  fill: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.root :global(#arrowhead) {
+  fill: var(--muted-foreground);
+}
+
+.root :global(#arrowhead-hover),
+.root :global(#arrowhead-select) {
+  fill: var(--primary);
+}
+
+.root :global(.select > .node.node-border) {
+  stroke: var(--primary);
+  stroke-width: 2px;
+}
+
+.root :global(.select.edge-path) {
+  marker-end: url("#arrowhead-select");
+  stroke: var(--primary);
+  stroke-width: 1.5px;
+}
+
+.root :global(.is-highlighted > .node.node-border) {
+  stroke: color-mix(in srgb, var(--primary) 65%, var(--border));
+}
+
+.root :global(.is-dimmed) {
+  opacity: 0.18;
+}
+
+.root :global(.is-dimmed-edge) {
+  opacity: 0.08;
+}
+
+@media (max-width: 760px) {
+  .toolbar {
+    left: 12px;
+    top: 84px;
+  }
+
+  .modeStatus {
+    bottom: 14px;
+    left: 12px;
+  }
+}

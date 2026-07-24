@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BootSequence } from "./boot-sequence";
 import { CommandPalette } from "./command-palette";
 import { DocumentUpload } from "./document-upload";
+import { KnowledgeGraph2D } from "./knowledge-graph-2d";
 import { NeuralGraph } from "./neural-graph";
 import { NodeInspector } from "./node-inspector";
 import { calculateMetrics, getActiveGraph } from "@/lib/graph/engine";
@@ -360,6 +361,7 @@ function NetworkView() {
   const selectedNodeId = useGraphStore((state) => state.selectedNodeId);
   const selected = snapshot.nodes.find((node) => node.id === selectedNodeId);
   const setCommandOpen = useGraphStore((state) => state.setCommandOpen);
+  const [renderer, setRenderer] = useState<"map" | "spatial">("map");
 
   return (
     <motion.main
@@ -372,14 +374,32 @@ function NetworkView() {
           <div className="eyebrow">Knowledge graph</div>
           <h1>{selected?.label ?? "World Creators knowledge graph"}</h1>
         </div>
-        <button className="network-search" onClick={() => setCommandOpen(true)}>
-          <Search size={15} />
-          Search nodes
-          <kbd>⌘ K</kbd>
-        </button>
+        <div className="network-canvas-actions">
+          <div className="graph-view-switch" role="group" aria-label="Graph view">
+            <button
+              type="button"
+              data-active={renderer === "map"}
+              onClick={() => setRenderer("map")}
+            >
+              2D map
+            </button>
+            <button
+              type="button"
+              data-active={renderer === "spatial"}
+              onClick={() => setRenderer("spatial")}
+            >
+              3D graph
+            </button>
+          </div>
+          <button className="network-search" onClick={() => setCommandOpen(true)}>
+            <Search size={15} />
+            Search nodes
+            <kbd>⌘ K</kbd>
+          </button>
+        </div>
       </div>
       <div className="network-stage">
-        <NeuralGraph />
+        {renderer === "map" ? <KnowledgeGraph2D /> : <NeuralGraph />}
         <div className="network-legend">
           {(["framework", "offer", "system", "source", "claim"] as NodeType[]).map((type) => (
             <span key={type}>

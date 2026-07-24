@@ -1,13 +1,13 @@
 # World Creators Knowledge Network
 
-A dynamic, provenance-aware 3D knowledge graph that lets agents traverse and
+A dynamic, provenance-aware knowledge graph that lets agents traverse and
 maintain the World Creators knowledge base without repeatedly scanning the
 entire filebase.
 
 ## Product surfaces
 
 - Read-only human observability dashboard
-- Interactive 3D semantic network
+- Deterministic 2D knowledge map with an optional 3D spatial view
 - Hybrid lexical and graph retrieval
 - Node, relationship, source, and evidence inspection
 - Human document upload as the only frontend mutation
@@ -71,3 +71,7 @@ and every record carries provenance, authority, confidence, and update metadata.
 
 Interface patterns and interaction primitives are informed by the locally
 cloned MIT-licensed Untitled UI React repository. See `NOTICE.md`.
+
+The 2D knowledge map uses a pinned, adapted subset of Netron v9.1.8's
+MIT-licensed graph renderer and Dagre layout. Only the renderer files are
+vendored; Netron's model parsers and application shell are not included.

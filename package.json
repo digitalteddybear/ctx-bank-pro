@@ -10,13 +10,14 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && npm run lint && npm run qa:docs",
+    "test": "npm run typecheck && npm run lint && npm run qa:docs && npm run qa:netron",
     "ingest": "tsx scripts/ingest-world-creators.ts",
     "mcp": "tsx mcp/server.ts",
     "qa:mcp": "node scripts/mcp-qa.mjs",
     "qa:sync": "node scripts/live-sync-qa.mjs",
     "qa:visual": "node scripts/visual-qa.mjs",
     "qa:docs": "node scripts/docs-qa.mjs",
+    "qa:netron": "node scripts/netron-poc-qa.mjs",
     "qa:api": "node scripts/api-qa.mjs"
   },
   "dependencies": {

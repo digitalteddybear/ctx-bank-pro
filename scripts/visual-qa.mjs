@@ -48,17 +48,60 @@ await page.keyboard.press("Meta+K");
 await page.getByPlaceholder(/Search node titles/i).fill("Bulletproof Offer");
 await page.locator(".command-results button").first().click();
 await page.getByRole("heading", { name: "Bulletproof Offer™" }).first().waitFor();
-await page.locator(".graph-loading").waitFor({ state: "hidden", timeout: 10_000 });
+await page.getByTestId("knowledge-graph-2d").waitFor();
+await page.getByTestId("knowledge-graph-2d").locator('[data-node-id="bulletproof-offer"]').waitFor();
 await page.waitForTimeout(700);
+
+const semanticNodeCount = await page.getByTestId("knowledge-graph-2d").locator("[data-node-id]").count();
+const semanticLinkCount = await page.getByTestId("knowledge-graph-2d").locator("[data-link-id]").count();
+const selectedNode = page.getByTestId("knowledge-graph-2d").locator('[data-node-id="bulletproof-offer"]');
+const selectedNodeAccessible =
+  (await selectedNode.getAttribute("role")) === "button" &&
+  (await selectedNode.getAttribute("tabindex")) === "0" &&
+  Boolean(await selectedNode.getAttribute("aria-label"));
+
+await page.getByRole("button", { name: "Focus one-hop neighborhood" }).click();
+await page.waitForTimeout(500);
+const neighborhoodNodeCount =
+  await page.getByTestId("knowledge-graph-2d").locator("[data-node-id]").count();
+await page.getByRole("button", { name: "Focus one-hop neighborhood" }).click();
+await page.waitForTimeout(500);
+
+await page.getByRole("button", { name: "Start shortest path" }).click();
+const pathDestination = page
+  .getByTestId("knowledge-graph-2d")
+  .locator('[data-node-id="strategic-synthesis"]');
+await pathDestination.focus();
+await pathDestination.press("Enter");
+await page.getByRole("button", { name: "Start shortest path" }).waitFor();
+await page.waitForTimeout(350);
+const pathHighlightedNodeCount =
+  await page.getByTestId("knowledge-graph-2d").locator(".is-highlighted").count();
+
 await page.screenshot({
   path: path.join(outputDirectory, "network.png"),
   fullPage: true,
 });
 
+await page.getByRole("button", { name: "3D graph" }).click();
+await page.locator(".graph-loading").waitFor({ state: "hidden", timeout: 10_000 });
+await page.waitForTimeout(500);
+const graphCanvasCount = await page.locator("canvas").count();
+await page.getByRole("button", { name: "2D map" }).click();
+await page.getByTestId("knowledge-graph-2d").waitFor();
+
 const report = {
   title: await page.title(),
   dashboardVisible,
-  graphCanvasCount: await page.locator("canvas").count(),
+  graphCanvasCount,
+  netronMapVerified: semanticNodeCount > 0 && semanticLinkCount > 0,
+  netronSemanticNodes: semanticNodeCount,
+  netronSemanticLinks: semanticLinkCount,
+  selectedNodeAccessible,
+  neighborhoodVerified:
+    neighborhoodNodeCount > 0 && neighborhoodNodeCount < semanticNodeCount,
+  shortestPathVerified: pathHighlightedNodeCount >= 2,
+  rendererSwitchVerified: graphCanvasCount >= 1,
   documentUploadAvailable: await page.getByRole("button", { name: "Upload document" }).isVisible(),
   humanKnowledgeMutationControls:
     (await page.getByRole("button", { name: /Add knowledge|Edit|Deprecate|Remove node|Connect/i }).count()),
@@ -68,7 +111,7 @@ const report = {
   consoleErrors,
 };
 
-await page.goto(`${baseUrl}/extension`, { waitUntil: "networkidle", timeout: 30_000 });
+await page.goto(`${baseUrl}/extension`, { waitUntil: "domcontentloaded", timeout: 30_000 });
 await page.getByRole("heading", { name: "Knowledge Network extension" }).waitFor();
 const extensionDocsVerified =
   (await page.getByRole("heading", { name: "MCP tools" }).count()) === 0 &&
@@ -90,7 +133,7 @@ const mobilePage = await browser.newPage({
   deviceScaleFactor: 1,
   colorScheme: "dark",
 });
-await mobilePage.goto(`${baseUrl}/extension`, { waitUntil: "networkidle", timeout: 30_000 });
+await mobilePage.goto(`${baseUrl}/extension`, { waitUntil: "domcontentloaded", timeout: 30_000 });
 await mobilePage.getByRole("heading", { name: "Knowledge Network extension" }).waitFor();
 const extensionMobileVerified =
   (await mobilePage.getByRole("link", { name: "Open graph" }).isVisible()) &&
@@ -111,7 +154,11 @@ if (
   pageErrors.length ||
   consoleErrors.length ||
   !report.dashboardVisible ||
-  report.graphCanvasCount < 1 ||
+  !report.netronMapVerified ||
+  !report.selectedNodeAccessible ||
+  !report.neighborhoodVerified ||
+  !report.shortestPathVerified ||
+  !report.rendererSwitchVerified ||
   report.humanKnowledgeMutationControls > 0 ||
   !report.extensionDocsVerified ||
   !report.extensionScrollSpyVerified ||

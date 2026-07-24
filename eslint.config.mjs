@@ -11,5 +11,6 @@ export default defineConfig([
     "node_modules/**",
     "coverage/**",
     "data/generated/**",
+    "src/vendor/netron/*.js",
   ]),
 ]);
