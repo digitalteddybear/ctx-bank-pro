@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import Image from "next/image";
 import {
   Activity,
   BookOpenText,
@@ -32,8 +33,8 @@ import type { GraphMetrics, GraphSnapshot, NodeType } from "@/lib/graph/types";
 import { Badge, Button, IconButton, Panel } from "@/components/ui/primitives";
 
 const navItems = [
-  { id: "dashboard", label: "Graph status", icon: Home },
-  { id: "network", label: "Knowledge graph", icon: Network },
+  { id: "dashboard", label: "Knowledge Bank Status", icon: Home },
+  { id: "network", label: "Knowledge Bank", icon: Network },
   { id: "sources", label: "Documents and sources", icon: Database },
 ] as const;
 
@@ -71,17 +72,14 @@ interface RuntimeStatus {
 function WorldCreatorsMark() {
   return (
     <div className="wc-mark" aria-label="World Creators">
-      <svg viewBox="0 0 42 24" role="img" aria-hidden="true">
-        <path
-          d="M2 13.8 10.1 5.7c1.5-1.5 3.9-1.5 5.4 0l4 4 6.1-6.1c1.5-1.5 3.9-1.5 5.4 0l1.4 1.4-10.2 10.2c-1.5 1.5-3.9 1.5-5.4 0l-4-4-5.4 5.4c-1.5 1.5-3.9 1.5-5.4 0L2 13.8Z"
-          fill="currentColor"
-        />
-        <path
-          d="m40 10.2-8.1 8.1c-1.5 1.5-3.9 1.5-5.4 0l-1.4-1.4L35.3 6.7c1.5-1.5 3.9-1.5 5.4 0l.7.7L40 10.2Z"
-          fill="currentColor"
-          opacity=".58"
-        />
-      </svg>
+      <Image
+        src="/assets/vector-2-header.svg"
+        alt=""
+        aria-hidden="true"
+        width={42}
+        height={20}
+        priority
+      />
     </div>
   );
 }
@@ -182,12 +180,12 @@ function DashboardView({
       <div className="workspace-heading">
         <div>
           <div className="eyebrow">Graph and document status</div>
-          <h1>Knowledge graph status</h1>
+          <h1>Knowledge Bank Status</h1>
           <p>Counts and recent updates for nodes, links, indexed files and uploaded documents.</p>
         </div>
         <div className="workspace-heading__actions">
           <Button variant="secondary" onClick={() => setViewMode("network")}>
-            Open knowledge graph
+            Open Knowledge Bank
             <Network size={15} />
           </Button>
         </div>
@@ -229,10 +227,10 @@ function DashboardView({
           <div className="panel-heading panel-heading--overlay">
             <div>
               <div className="section-label">Current graph data</div>
-              <h2>Knowledge graph</h2>
+              <h2>Knowledge Bank</h2>
             </div>
             <div className="panel-heading__meta">
-              <button onClick={() => setViewMode("network")}>Open full graph</button>
+              <button onClick={() => setViewMode("network")}>Open Knowledge Bank</button>
             </div>
           </div>
           <NeuralGraph compact />
@@ -357,9 +355,6 @@ function DashboardView({
 }
 
 function NetworkView() {
-  const snapshot = useGraphStore((state) => state.snapshot);
-  const selectedNodeId = useGraphStore((state) => state.selectedNodeId);
-  const selected = snapshot.nodes.find((node) => node.id === selectedNodeId);
   const setCommandOpen = useGraphStore((state) => state.setCommandOpen);
   const [renderer, setRenderer] = useState<"map" | "spatial">("map");
 
@@ -370,12 +365,8 @@ function NetworkView() {
       animate={{ opacity: 1 }}
     >
       <div className="network-canvas-heading">
-        <div>
-          <div className="eyebrow">Knowledge graph</div>
-          <h1>{selected?.label ?? "World Creators knowledge graph"}</h1>
-        </div>
         <div className="network-canvas-actions">
-          <div className="graph-view-switch" role="group" aria-label="Graph view">
+          <div className="graph-view-switch" role="group" aria-label="Knowledge Bank view">
             <button
               type="button"
               data-active={renderer === "map"}
@@ -428,7 +419,7 @@ function SourcesView({ documents }: { documents: DocumentSummary[] }) {
       <div className="workspace-heading">
         <div>
           <div className="eyebrow">Uploaded documents and source nodes</div>
-          <h1>Documents and graph sources</h1>
+          <h1>Documents And Knowledge Bank Sources</h1>
           <p>Review uploaded files and open the graph nodes that reference source material.</p>
         </div>
         <Badge tone="cyan">{documents.length} uploaded documents</Badge>
@@ -629,11 +620,11 @@ export function KnowledgeApp() {
           <div className="product-name">
             <span>World Creators</span>
             <i />
-            Knowledge Graph
+            Context Bank
           </div>
           <button className="global-search" onClick={() => setCommandOpen(true)}>
             <Search size={15} />
-            <span>Search graph nodes</span>
+            <span>Search Knowledge Bank</span>
             <kbd><Command size={11} /> K</kbd>
           </button>
           <div className="topbar__actions">

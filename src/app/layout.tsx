@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "World Creators · Knowledge Graph",
+  title: "World Creators · Knowledge Bank",
   description: "Search and review World Creators graph nodes, links, documents and source references.",
 };
 

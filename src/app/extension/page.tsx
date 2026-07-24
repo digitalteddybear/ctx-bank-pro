@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import packageJson from "../../../package.json";
@@ -17,17 +18,12 @@ type Row = readonly string[];
 function WorldCreatorsMark() {
   return (
     <span className={styles.mark} aria-hidden="true">
-      <svg viewBox="0 0 42 24">
-        <path
-          d="M2 13.8 10.1 5.7c1.5-1.5 3.9-1.5 5.4 0l4 4 6.1-6.1c1.5-1.5 3.9-1.5 5.4 0l1.4 1.4-10.2 10.2c-1.5 1.5-3.9 1.5-5.4 0l-4-4-5.4 5.4c-1.5 1.5-3.9 1.5-5.4 0L2 13.8Z"
-          fill="currentColor"
-        />
-        <path
-          d="m40 10.2-8.1 8.1c-1.5 1.5-3.9 1.5-5.4 0l-1.4-1.4L35.3 6.7c1.5-1.5 3.9-1.5 5.4 0l.7.7L40 10.2Z"
-          fill="currentColor"
-          opacity=".58"
-        />
-      </svg>
+      <Image
+        src="/assets/vector-2-header.svg"
+        alt=""
+        width={42}
+        height={20}
+      />
     </span>
   );
 }
@@ -84,7 +80,7 @@ export default function ExtensionDocsPage() {
           <span className={styles.version}>app v{packageJson.version}</span>
           <Link href="/" className={styles.backLink}>
             <ArrowLeft size={14} />
-            Open graph
+            Open Knowledge Bank
           </Link>
         </div>
       </header>
@@ -95,7 +91,7 @@ export default function ExtensionDocsPage() {
         <main className={styles.main}>
           <section className={styles.hero}>
             <div className={styles.eyebrow}>Operator and agent documentation</div>
-            <h1>Knowledge Network extension</h1>
+            <h1>Knowledge Bank Extension</h1>
             <p className={styles.lede}>
               Use this page to run the application, locate its source and data,
               process uploaded documents, and operate the knowledge graph through MCP or HTTP.
@@ -247,7 +243,7 @@ npm start
               <code className={styles.inlineCode}> npm run build</code>.
             </p>
             <Link href="/" className={styles.backLink}>
-              Open the knowledge graph
+              Open the Knowledge Bank
               <ArrowUpRight size={14} />
             </Link>
           </section>

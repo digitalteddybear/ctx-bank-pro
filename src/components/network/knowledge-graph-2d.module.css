@@ -34,15 +34,14 @@
 
 .toolbar {
   align-items: center;
-  background: var(--popover);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: transparent;
+  border: 0;
   display: flex;
   gap: 3px;
   left: 18px;
-  padding: 4px;
+  padding: 0;
   position: absolute;
-  top: 96px;
+  top: 24px;
   z-index: 8;
 }
 
@@ -62,7 +61,15 @@
 
 .toolbar button:hover,
 .toolbar button[data-active="true"] {
-  background: var(--accent);
+  background: transparent;
+  color: var(--primary);
+}
+
+.toolbar button svg {
+  color: #fff;
+}
+
+.toolbar button[data-active="true"] svg {
   color: var(--primary);
 }
 
@@ -239,7 +246,7 @@
 @media (max-width: 760px) {
   .toolbar {
     left: 12px;
-    top: 84px;
+    top: 24px;
   }
 
   .modeStatus {

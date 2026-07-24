@@ -4,6 +4,10 @@
   color: var(--foreground);
 }
 
+.page svg {
+  color: #fff;
+}
+
 .header {
   align-items: center;
   background: var(--background);
@@ -33,18 +37,15 @@
 
 .mark {
   align-items: center;
-  background: var(--sidebar-accent);
-  border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
-  border-radius: 10px;
-  color: var(--primary);
   display: flex;
   height: 34px;
   justify-content: center;
   width: 34px;
 }
 
-.mark svg {
-  width: 22px;
+.mark img {
+  height: auto;
+  width: 30px;
 }
 
 .brandDivider {
@@ -155,6 +156,15 @@
   line-height: 1;
   margin: 18px 0 18px;
   max-width: 760px;
+}
+
+.page h1,
+.page h2,
+.page h3,
+.page h4,
+.page h5,
+.page h6 {
+  text-transform: capitalize;
 }
 
 .lede {

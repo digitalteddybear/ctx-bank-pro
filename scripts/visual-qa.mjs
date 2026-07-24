@@ -31,9 +31,25 @@ page.on("console", (message) => {
 });
 
 await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 30_000 });
-await page.getByRole("heading", { name: "Knowledge graph status" }).waitFor();
+await page.getByRole("heading", { name: "Knowledge Bank Status" }).waitFor();
 await page.locator(".graph-loading").waitFor({ state: "hidden", timeout: 10_000 });
 const dashboardVisible = await page.getByText("Graph and document status").isVisible();
+const brandAssetVerified = await page.locator('.wc-mark img[src="/assets/vector-2-header.svg"]')
+  .evaluate((image) => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0);
+const headingCapitalizationApplied =
+  await page.getByRole("heading", { name: "Knowledge Bank Status" })
+    .evaluate((heading) => getComputedStyle(heading).textTransform === "capitalize");
+const bareIcon = page.locator(".icon-button:not(.is-active)").first();
+const iconsBareVerified = await bareIcon.evaluate((button) => {
+  const buttonStyle = getComputedStyle(button);
+  const icon = button.querySelector("svg");
+  const iconStyle = icon ? getComputedStyle(icon) : null;
+  return buttonStyle.backgroundColor === "rgba(0, 0, 0, 0)" &&
+    buttonStyle.borderTopWidth === "0px" &&
+    iconStyle?.color === "rgb(255, 255, 255)";
+});
+const panelIconsWhiteVerified = await page.locator(".panel-heading > svg").first()
+  .evaluate((icon) => getComputedStyle(icon).color === "rgb(255, 255, 255)");
 await page.waitForTimeout(700);
 await page.screenshot({
   path: path.join(outputDirectory, "dashboard.png"),
@@ -59,6 +75,15 @@ const selectedNodeAccessible =
   (await selectedNode.getAttribute("role")) === "button" &&
   (await selectedNode.getAttribute("tabindex")) === "0" &&
   Boolean(await selectedNode.getAttribute("aria-label"));
+const toolbarBox = await page.getByLabel("Knowledge map controls").boundingBox();
+const viewSwitchBox =
+  await page.getByRole("group", { name: "Knowledge Bank view" }).boundingBox();
+const graphControlsAligned =
+  Boolean(toolbarBox && viewSwitchBox && Math.abs(toolbarBox.y - viewSwitchBox.y) <= 4);
+const canvasHeadingRemoved =
+  (await page.locator(".network-canvas-heading h1, .network-canvas-heading .eyebrow").count()) === 0;
+const contextBankHeaderVerified =
+  (await page.locator(".product-name").textContent())?.includes("Context Bank") ?? false;
 
 const graphViewport = page.getByTestId("knowledge-graph-viewport");
 const graphCanvas = page.getByTestId("knowledge-graph-canvas");
@@ -101,8 +126,17 @@ await page.getByRole("button", { name: "Focus one-hop neighborhood" }).click();
 await page.waitForTimeout(500);
 const neighborhoodNodeCount =
   await page.getByTestId("knowledge-graph-2d").locator("[data-node-id]").count();
-await page.getByRole("button", { name: "Focus one-hop neighborhood" }).click();
+await graphCanvas.click({ position: { x: 6, y: 6 }, force: true });
 await page.waitForTimeout(500);
+const openSpaceResetVerified =
+  (await page.getByTestId("knowledge-graph-2d").locator("[data-node-id]").count()) ===
+    semanticNodeCount &&
+  (await page.getByRole("button", { name: "Focus one-hop neighborhood" }).isDisabled()) &&
+  (await page.locator(".inspector").count()) === 0;
+
+await selectedNode.focus();
+await selectedNode.press("Enter");
+await page.getByText("Record metadata").waitFor();
 
 await page.getByRole("button", { name: "Start shortest path" }).click();
 const pathDestination = page
@@ -135,6 +169,13 @@ const report = {
   netronSemanticNodes: semanticNodeCount,
   netronSemanticLinks: semanticLinkCount,
   selectedNodeAccessible,
+  brandAssetVerified,
+  headingCapitalizationApplied,
+  iconsBareVerified,
+  panelIconsWhiteVerified,
+  graphControlsAligned,
+  canvasHeadingRemoved,
+  contextBankHeaderVerified,
   canvasZoomVerified:
     canvasWidthAfterZoom > canvasWidthBeforeZoom &&
     browserScaleAfterZoom === browserScaleBeforeZoom,
@@ -146,6 +187,7 @@ const report = {
     scrollAfterPan.top !== scrollBeforePan.top,
   neighborhoodVerified:
     neighborhoodNodeCount > 0 && neighborhoodNodeCount < semanticNodeCount,
+  openSpaceResetVerified,
   shortestPathVerified: pathHighlightedNodeCount >= 2,
   rendererSwitchVerified: graphCanvasCount >= 1,
   documentUploadAvailable: await page.getByRole("button", { name: "Upload document" }).isVisible(),
@@ -158,12 +200,12 @@ const report = {
 };
 
 await page.goto(`${baseUrl}/extension`, { waitUntil: "domcontentloaded", timeout: 30_000 });
-await page.getByRole("heading", { name: "Knowledge Network extension" }).waitFor();
+await page.getByRole("heading", { name: "Knowledge Bank Extension" }).waitFor();
 const extensionDocsVerified =
   (await page.getByRole("heading", { name: "MCP tools" }).count()) === 0 &&
   (await page.getByRole("heading", { name: "Read tools" }).isVisible()) &&
   (await page.getByText("14", { exact: true }).first().isVisible()) &&
-  (await page.getByRole("link", { name: "Open graph" }).isVisible());
+  (await page.getByRole("link", { name: "Open Knowledge Bank" }).isVisible());
 await page.locator("#mcp").scrollIntoViewIfNeeded();
 await page.waitForTimeout(250);
 const extensionScrollSpyVerified =
@@ -180,9 +222,9 @@ const mobilePage = await browser.newPage({
   colorScheme: "dark",
 });
 await mobilePage.goto(`${baseUrl}/extension`, { waitUntil: "domcontentloaded", timeout: 30_000 });
-await mobilePage.getByRole("heading", { name: "Knowledge Network extension" }).waitFor();
+await mobilePage.getByRole("heading", { name: "Knowledge Bank Extension" }).waitFor();
 const extensionMobileVerified =
-  (await mobilePage.getByRole("link", { name: "Open graph" }).isVisible()) &&
+  (await mobilePage.getByRole("link", { name: "Open Knowledge Bank" }).isVisible()) &&
   (await mobilePage.locator("html").evaluate((element) => element.scrollWidth <= element.clientWidth));
 await mobilePage.screenshot({
   path: path.join(outputDirectory, "extension-mobile.png"),
@@ -202,10 +244,18 @@ if (
   !report.dashboardVisible ||
   !report.netronMapVerified ||
   !report.selectedNodeAccessible ||
+  !report.brandAssetVerified ||
+  !report.headingCapitalizationApplied ||
+  !report.iconsBareVerified ||
+  !report.panelIconsWhiteVerified ||
+  !report.graphControlsAligned ||
+  !report.canvasHeadingRemoved ||
+  !report.contextBankHeaderVerified ||
   !report.canvasZoomVerified ||
   !report.progressiveZoomVerified ||
   !report.canvasPanVerified ||
   !report.neighborhoodVerified ||
+  !report.openSpaceResetVerified ||
   !report.shortestPathVerified ||
   !report.rendererSwitchVerified ||
   report.humanKnowledgeMutationControls > 0 ||

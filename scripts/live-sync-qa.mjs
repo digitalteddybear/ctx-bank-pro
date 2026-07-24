@@ -16,7 +16,7 @@ let createdId;
 
 try {
   await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 30_000 });
-  await page.getByRole("heading", { name: "Knowledge graph status" }).waitFor();
+  await page.getByRole("heading", { name: "Knowledge Bank Status" }).waitFor();
   const metric = page
     .locator(".metric-card")
     .filter({ hasText: "Active nodes" })

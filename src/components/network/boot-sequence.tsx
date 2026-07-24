@@ -26,7 +26,7 @@ export function BootSequence({ progress }: { progress: number }) {
       </div>
       <div className="boot-copy">
         <div className="eyebrow">Application start</div>
-        <h1>World Creators Knowledge Graph</h1>
+        <h1>World Creators Knowledge Bank</h1>
         <p>{steps[index]}</p>
         <div className="boot-progress">
           <motion.span animate={{ width: `${Math.max(8, progress * 100)}%` }} />

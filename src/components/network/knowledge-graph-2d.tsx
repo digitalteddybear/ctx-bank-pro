@@ -39,6 +39,7 @@ export function KnowledgeGraph2D() {
   const zoomAnimationRef = useRef<number | null>(null);
   const zoomAnchorRef = useRef({ x: 0, y: 0, graphX: 0, graphY: 0 });
   const pathStartRef = useRef<string | null>(null);
+  const suppressCanvasClickRef = useRef(false);
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const snapshot = useGraphStore((state) => state.snapshot);
   const selectedNodeId = useGraphStore((state) => state.selectedNodeId);
@@ -389,6 +390,13 @@ export function KnowledgeGraph2D() {
     setHighlightedNodes([selectedNodeId]);
   };
 
+  const clearInteraction = () => {
+    setNeighborhoodOnly(false);
+    setPathStartId(null);
+    setHighlightedNodes([]);
+    selectNode(null);
+  };
+
   return (
     <div className={styles.root} data-testid="knowledge-graph-2d">
       {!ready && <div className={styles.loading}>Laying out knowledge map</div>}
@@ -397,6 +405,19 @@ export function KnowledgeGraph2D() {
         ref={viewportRef}
         data-testid="knowledge-graph-viewport"
         data-panning={panning}
+        onClick={(event) => {
+          if (suppressCanvasClickRef.current) {
+            suppressCanvasClickRef.current = false;
+            return;
+          }
+          if (
+            event.target instanceof Element &&
+            event.target.closest(
+              "[data-node-id], [data-link-id], .edge-paths-hit-test, .edge-labels",
+            )
+          ) return;
+          clearInteraction();
+        }}
         onPointerDown={(event) => {
           if (event.button !== 0 || !viewportRef.current) return;
           if (
@@ -427,6 +448,12 @@ export function KnowledgeGraph2D() {
           viewport.scrollTop = start.top - (event.clientY - start.y);
         }}
         onPointerUp={(event) => {
+          const start = panRef.current;
+          if (start) {
+            suppressCanvasClickRef.current =
+              Math.abs(event.clientX - start.x) > 4 ||
+              Math.abs(event.clientY - start.y) > 4;
+          }
           panRef.current = null;
           setPanning(false);
           event.currentTarget.releasePointerCapture(event.pointerId);
@@ -439,11 +466,6 @@ export function KnowledgeGraph2D() {
           width={canvasSize.width * zoom}
           height={canvasSize.height * zoom}
           aria-label="World Creators two-dimensional knowledge map"
-          onClick={(event) => {
-            if (event.target !== event.currentTarget) return;
-            selectNode(null);
-            setHighlightedNodes([]);
-          }}
         >
           <g ref={originRef} />
         </svg>
