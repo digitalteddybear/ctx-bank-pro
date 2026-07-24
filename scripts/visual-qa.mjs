@@ -75,6 +75,11 @@ const extensionDocsVerified =
   (await page.getByRole("heading", { name: "Read tools" }).isVisible()) &&
   (await page.getByText("14", { exact: true }).first().isVisible()) &&
   (await page.getByRole("link", { name: "Open graph" }).isVisible());
+await page.locator("#mcp").scrollIntoViewIfNeeded();
+await page.waitForTimeout(250);
+const extensionScrollSpyVerified =
+  (await page.locator('nav[aria-label="Documentation sections"] a[href="#mcp"]')
+    .getAttribute("aria-current")) === "location";
 await page.screenshot({
   path: path.join(outputDirectory, "extension.png"),
   fullPage: true,
@@ -97,6 +102,7 @@ await mobilePage.screenshot({
 await mobilePage.close();
 
 report.extensionDocsVerified = extensionDocsVerified;
+report.extensionScrollSpyVerified = extensionScrollSpyVerified;
 report.extensionMobileVerified = extensionMobileVerified;
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
@@ -108,6 +114,7 @@ if (
   report.graphCanvasCount < 1 ||
   report.humanKnowledgeMutationControls > 0 ||
   !report.extensionDocsVerified ||
+  !report.extensionScrollSpyVerified ||
   !report.extensionMobileVerified
 ) {
   process.exitCode = 1;

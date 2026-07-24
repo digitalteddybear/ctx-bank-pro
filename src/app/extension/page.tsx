@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import packageJson from "../../../package.json";
 import { extensionDocs } from "@/content/extension-docs";
+import { ExtensionNav } from "./extension-nav";
 import styles from "./page.module.css";
 
 export const metadata: Metadata = {
@@ -10,21 +11,6 @@ export const metadata: Metadata = {
   description:
     "Operating documentation for the World Creators Knowledge Network, its agent tools, APIs, storage, and workspace.",
 };
-
-const sections = [
-  ["scope", "Scope"],
-  ["start", "Run locally"],
-  ["workspace", "Workspace map"],
-  ["human-workflow", "Human workflow"],
-  ["agent-workflow", "Agent workflow"],
-  ["mcp", "MCP tools"],
-  ["http", "HTTP API"],
-  ["model", "Graph model"],
-  ["storage", "Storage and configuration"],
-  ["repository", "Repository map"],
-  ["commands", "Commands"],
-  ["maintenance", "Update this page"],
-] as const;
 
 type Row = readonly string[];
 
@@ -104,16 +90,7 @@ export default function ExtensionDocsPage() {
       </header>
 
       <div className={styles.layout}>
-        <aside className={styles.nav}>
-          <div className={styles.navLabel}>On this page</div>
-          <nav aria-label="Documentation sections">
-            <ol>
-              {sections.map(([id, label]) => (
-                <li key={id}><a href={`#${id}`}>{label}</a></li>
-              ))}
-            </ol>
-          </nav>
-        </aside>
+        <ExtensionNav />
 
         <main className={styles.main}>
           <section className={styles.hero}>
