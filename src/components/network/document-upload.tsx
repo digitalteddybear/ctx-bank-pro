@@ -59,7 +59,7 @@ export function DocumentUpload({ onComplete }: { onComplete: () => Promise<void>
 
   return (
     <>
-      <Button size="sm" onClick={() => setOpen(true)}>
+      <Button className="upload-document-button" size="sm" onClick={() => setOpen(true)}>
         <FileUp size={15} />
         Upload document
       </Button>

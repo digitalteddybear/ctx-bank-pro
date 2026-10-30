@@ -44,7 +44,7 @@ export interface IngestionDocument {
 
 const inboxRoot =
   process.env.INGESTION_ROOT ??
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "inbox");
+  path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "asp-invest", "inbox");
 const filesRoot = path.join(inboxRoot, "files");
 const recordsRoot = path.join(inboxRoot, "records");
 

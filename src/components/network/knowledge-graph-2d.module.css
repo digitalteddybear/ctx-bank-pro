@@ -7,15 +7,25 @@
 }
 
 .viewport {
-  cursor: grab;
+  cursor: default;
   height: 100%;
-  overflow: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   position: relative;
   scrollbar-color: color-mix(in srgb, var(--foreground) 14%, transparent) transparent;
   scrollbar-width: thin;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
   width: 100%;
+}
+
+/* The graph is a direct-manipulation surface, never selectable document text. */
+.viewport *,
+.canvas,
+.canvas * {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .viewport[data-panning="true"] {
@@ -25,9 +35,7 @@
 
 .canvas {
   display: block;
-  margin: auto;
-  min-height: 100%;
-  min-width: 100%;
+  margin: 0;
   text-rendering: geometricPrecision;
   will-change: width, height;
 }
@@ -47,8 +55,8 @@
 
 .toolbar button {
   align-items: center;
-  background: transparent;
-  border: 0;
+  background: var(--popover);
+  border: 1px solid var(--border);
   border-radius: 7px;
   color: var(--muted-foreground);
   cursor: pointer;
@@ -61,7 +69,8 @@
 
 .toolbar button:hover,
 .toolbar button[data-active="true"] {
-  background: transparent;
+  background: var(--accent);
+  border-color: var(--primary);
   color: var(--primary);
 }
 
@@ -120,7 +129,7 @@
   justify-content: center;
   letter-spacing: 0.08em;
   position: absolute;
-  text-transform: uppercase;
+  text-transform: none;
   z-index: 10;
 }
 
@@ -136,6 +145,7 @@
 }
 
 .root :global(.node) {
+  cursor: pointer;
   outline: none;
   transition: opacity 140ms ease;
 }

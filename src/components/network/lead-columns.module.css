@@ -1,0 +1,69 @@
+.board {
+  background: var(--background);
+  height: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding-inline: var(--layout-gap);
+  padding-top: calc(var(--control-height) + (var(--layout-gap) * 3));
+  scrollbar-color: color-mix(in srgb, var(--foreground) 18%, transparent) transparent;
+  scrollbar-width: thin;
+  transition: margin-right 220ms var(--ease);
+}
+
+.boardWithInspector {
+  margin-right: var(--inspector-width);
+  width: calc(100% - var(--inspector-width));
+}
+
+.column {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  min-width: 15rem;
+  overflow: hidden;
+}
+
+.header {
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.column :global(.astryx-list) {
+  min-width: 0;
+}
+
+.column :global(.astryx-list-item) {
+  min-height: var(--control-height);
+}
+
+.scroller {
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 18%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.marker {
+  color: var(--primary);
+  flex: 0 0 auto;
+}
+
+@media (max-width: 720px) {
+  .board {
+    scroll-snap-type: x mandatory;
+  }
+
+  .column {
+    flex: 0 0 calc(100vw - (var(--layout-gap) * 2));
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+
+  .boardWithInspector {
+    margin-right: 0;
+    width: 100%;
+  }
+}

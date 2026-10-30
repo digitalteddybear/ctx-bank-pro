@@ -1,7 +1,6 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import { NextResponse } from "next/server";
 import { documentRepository } from "@/lib/server/document-repository";
+import { loadLeadGraph } from "@/lib/server/lead-corpus";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,22 +14,15 @@ interface SourceManifest {
 }
 
 async function readSourceManifest(): Promise<SourceManifest | null> {
-  try {
-    return JSON.parse(
-      await fs.readFile(
-        path.join(
-          /*turbopackIgnore: true*/ process.cwd(),
-          "data",
-          "generated",
-          "source-manifest.json",
-        ),
-        "utf8",
-      ),
-    ) as SourceManifest;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw error;
-  }
+  const graph = await loadLeadGraph();
+  const leads = graph.nodes.filter((node) => node.id.startsWith("lead-"));
+  return {
+    generatedAt: graph.generatedAt,
+    sourceCount: leads.length,
+    textualCount: leads.length,
+    totalBytes: leads.reduce((sum, node) => sum + Buffer.byteLength(node.sources[0]?.excerpt ?? ""), 0),
+    byExtension: { ".md": leads.length },
+  };
 }
 
 export async function GET() {

@@ -1,29 +1,25 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import packageJson from "../../../package.json";
 import { extensionDocs } from "@/content/extension-docs";
 import { ExtensionNav } from "./extension-nav";
 import styles from "./page.module.css";
+import { ThemeAwareBrand } from "@/components/ui/theme-aware-brand";
+import { ThemePreferenceControl } from "@/components/ui/theme-switch";
 
 export const metadata: Metadata = {
-  title: "Extension documentation · World Creators",
+  title: "Documentation | CTX BankPro | World Creators",
   description:
-    "Operating documentation for the World Creators Knowledge Network, its agent tools, APIs, storage, and workspace.",
+    "Operating documentation for CTXBANKPRO, tailored for the World Creators contextual engineering workspace.",
 };
 
 type Row = readonly string[];
 
-function WorldCreatorsMark() {
+function CtxbankproMark() {
   return (
     <span className={styles.mark} aria-hidden="true">
-      <Image
-        src="/assets/vector-2-header.svg"
-        alt=""
-        width={42}
-        height={20}
-      />
+      <ThemeAwareBrand width={122} height={36} />
     </span>
   );
 }
@@ -71,12 +67,12 @@ export default function ExtensionDocsPage() {
     <div className={styles.page}>
       <header className={styles.header}>
         <Link href="/extension" className={styles.brand}>
-          <WorldCreatorsMark />
-          <span>World Creators</span>
+          <CtxbankproMark />
           <span className={styles.brandDivider} />
-          <span className={styles.brandMuted}>Extension docs</span>
+          <span className={styles.brandMuted}>World Creators documentation</span>
         </Link>
         <div className={styles.headerActions}>
+          <ThemePreferenceControl />
           <span className={styles.version}>app v{packageJson.version}</span>
           <Link href="/" className={styles.backLink}>
             <ArrowLeft size={14} />
@@ -91,10 +87,11 @@ export default function ExtensionDocsPage() {
         <main className={styles.main}>
           <section className={styles.hero}>
             <div className={styles.eyebrow}>Operator and agent documentation</div>
-            <h1>Knowledge Bank Extension</h1>
+            <h1>CTXBANKPRO for World Creators</h1>
             <p className={styles.lede}>
-              Use this page to run the application, locate its source and data,
-              process uploaded documents, and operate the knowledge graph through MCP or HTTP.
+              CTXBANKPRO is an agentic contextual engineering and agent-service platform.
+              This workspace tailors its capabilities to World Creators: run the application,
+              manage its source material, and operate its knowledge graph through MCP or HTTP.
             </p>
             <div className={styles.facts}>
               <div className={styles.fact}><span>Reviewed</span><strong>{release.reviewedOn}</strong></div>

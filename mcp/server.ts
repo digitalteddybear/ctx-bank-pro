@@ -13,7 +13,7 @@ import {
 } from "../src/lib/graph/types";
 
 const server = new McpServer({
-  name: "world-creators-knowledge-network",
+  name: "asp-invest-ctx-bank",
   version: "1.0.0",
 });
 

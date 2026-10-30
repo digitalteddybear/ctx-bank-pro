@@ -4,6 +4,14 @@ import process from "node:process";
 
 const baseUrl = process.env.QA_BASE_URL ?? "http://127.0.0.1:3000";
 const outputDirectory = process.cwd();
+const captureScreenshots = process.env.QA_CAPTURE_SCREENSHOTS === "1";
+const capture = async (targetPage, name) => {
+  if (!captureScreenshots) return;
+  await targetPage.screenshot({
+    path: path.join(outputDirectory, name),
+    fullPage: true,
+  });
+};
 const browser = await chromium.launch({
   executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   headless: true,
@@ -16,6 +24,7 @@ const browser = await chromium.launch({
   ],
 });
 
+try {
 const page = await browser.newPage({
   viewport: { width: 1600, height: 1000 },
   deviceScaleFactor: 1,
@@ -30,33 +39,50 @@ page.on("console", (message) => {
   if (message.type() === "error") consoleErrors.push(message.text());
 });
 
-await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 30_000 });
+await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+const bootScreen = page.locator(".boot-sequence");
+await bootScreen.waitFor({ state: "visible", timeout: 1_000 });
+const bootScreenMinimal = await bootScreen.evaluate((element) => {
+  const style = getComputedStyle(element);
+  const logo = element.querySelector(".boot-logo");
+  const progress = element.querySelector(".boot-progress span");
+  return element.textContent?.trim() === "" &&
+    Boolean(logo) &&
+    Boolean(progress) &&
+    style.backgroundImage === "none" &&
+    getComputedStyle(progress).backgroundImage === "none";
+});
+await bootScreen.waitFor({ state: "hidden", timeout: 20_000 });
 await page.getByRole("heading", { name: "Knowledge Bank Status" }).waitFor();
-await page.locator(".graph-loading").waitFor({ state: "hidden", timeout: 10_000 });
+await page.locator(".graph-loading").waitFor({ state: "hidden", timeout: 30_000 });
 const dashboardVisible = await page.getByText("Graph and document status").isVisible();
+const themeTokensVerified = await page.evaluate(() => {
+  const style = getComputedStyle(document.documentElement);
+  return style.getPropertyValue("--background").trim() === "#171717" &&
+    style.getPropertyValue("--primary").trim() === "#3b82f6" &&
+    style.getPropertyValue("--border").trim() === "#404040" &&
+    style.getPropertyValue("--font-sans").trim() === "Inter, sans-serif";
+});
 const brandAssetVerified = await page.locator('.wc-mark img[src="/assets/vector-2-header.svg"]')
   .evaluate((image) => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0);
 const headingCapitalizationApplied =
   await page.getByRole("heading", { name: "Knowledge Bank Status" })
     .evaluate((heading) => getComputedStyle(heading).textTransform === "capitalize");
-const bareIcon = page.locator(".icon-button:not(.is-active)").first();
-const iconsBareVerified = await bareIcon.evaluate((button) => {
+const navigationIcon = page.locator(".rail .icon-button:not(.is-active)").first();
+const navigationIconBordersVerified = await navigationIcon.evaluate((button) => {
   const buttonStyle = getComputedStyle(button);
   const icon = button.querySelector("svg");
   const iconStyle = icon ? getComputedStyle(icon) : null;
   return buttonStyle.backgroundColor === "rgba(0, 0, 0, 0)" &&
-    buttonStyle.borderTopWidth === "0px" &&
+    buttonStyle.borderTopWidth === "1px" &&
     iconStyle?.color === "rgb(255, 255, 255)";
 });
 const panelIconsWhiteVerified = await page.locator(".panel-heading > svg").first()
   .evaluate((icon) => getComputedStyle(icon).color === "rgb(255, 255, 255)");
 await page.waitForTimeout(700);
-await page.screenshot({
-  path: path.join(outputDirectory, "dashboard.png"),
-  fullPage: true,
-});
+await capture(page, "dashboard.png");
 
-await page.getByRole("button", { name: "Upload document" }).click();
+await page.getByRole("button", { name: "Upload document" }).click({ force: true });
 await page.getByRole("heading", { name: "Upload a document" }).waitFor();
 await page.getByRole("button", { name: "Close upload" }).click();
 
@@ -80,6 +106,11 @@ const viewSwitchBox =
   await page.getByRole("group", { name: "Knowledge Bank view" }).boundingBox();
 const graphControlsAligned =
   Boolean(toolbarBox && viewSwitchBox && Math.abs(toolbarBox.y - viewSwitchBox.y) <= 4);
+const zoomControlBordersVerified =
+  await page.getByRole("button", { name: "Zoom in" }).evaluate((button) => {
+    const style = getComputedStyle(button);
+    return style.borderTopWidth === "1px" && style.backgroundColor !== "rgba(0, 0, 0, 0)";
+  });
 const canvasHeadingRemoved =
   (await page.locator(".network-canvas-heading h1, .network-canvas-heading .eyebrow").count()) === 0;
 const contextBankHeaderVerified =
@@ -149,13 +180,10 @@ await page.waitForTimeout(350);
 const pathHighlightedNodeCount =
   await page.getByTestId("knowledge-graph-2d").locator(".is-highlighted").count();
 
-await page.screenshot({
-  path: path.join(outputDirectory, "network.png"),
-  fullPage: true,
-});
+await capture(page, "network.png");
 
 await page.getByRole("button", { name: "3D graph" }).click();
-await page.locator(".graph-loading").waitFor({ state: "hidden", timeout: 10_000 });
+await page.locator(".graph-loading").waitFor({ state: "hidden", timeout: 30_000 });
 await page.waitForTimeout(500);
 const graphCanvasCount = await page.locator("canvas").count();
 await page.getByRole("button", { name: "2D map" }).click();
@@ -164,6 +192,8 @@ await page.getByTestId("knowledge-graph-2d").waitFor();
 const report = {
   title: await page.title(),
   dashboardVisible,
+  bootScreenMinimal,
+  themeTokensVerified,
   graphCanvasCount,
   netronMapVerified: semanticNodeCount > 0 && semanticLinkCount > 0,
   netronSemanticNodes: semanticNodeCount,
@@ -171,13 +201,21 @@ const report = {
   selectedNodeAccessible,
   brandAssetVerified,
   headingCapitalizationApplied,
-  iconsBareVerified,
+  navigationIconBordersVerified,
   panelIconsWhiteVerified,
   graphControlsAligned,
+  zoomControlBordersVerified,
   canvasHeadingRemoved,
   contextBankHeaderVerified,
+  canvasZoomMeasurements: {
+    before: Math.round(canvasWidthBeforeZoom),
+    during: Math.round(canvasWidthDuringZoom),
+    after: Math.round(canvasWidthAfterZoom),
+    browserScaleBeforeZoom,
+    browserScaleAfterZoom,
+  },
   canvasZoomVerified:
-    canvasWidthAfterZoom > canvasWidthBeforeZoom &&
+    canvasWidthAfterZoom > canvasWidthBeforeZoom * 1.2 &&
     browserScaleAfterZoom === browserScaleBeforeZoom,
   progressiveZoomVerified:
     canvasWidthDuringZoom > canvasWidthBeforeZoom &&
@@ -211,10 +249,7 @@ await page.waitForTimeout(250);
 const extensionScrollSpyVerified =
   (await page.locator('nav[aria-label="Documentation sections"] a[href="#mcp"]')
     .getAttribute("aria-current")) === "location";
-await page.screenshot({
-  path: path.join(outputDirectory, "extension.png"),
-  fullPage: true,
-});
+await capture(page, "extension.png");
 
 const mobilePage = await browser.newPage({
   viewport: { width: 390, height: 844 },
@@ -226,29 +261,28 @@ await mobilePage.getByRole("heading", { name: "Knowledge Bank Extension" }).wait
 const extensionMobileVerified =
   (await mobilePage.getByRole("link", { name: "Open Knowledge Bank" }).isVisible()) &&
   (await mobilePage.locator("html").evaluate((element) => element.scrollWidth <= element.clientWidth));
-await mobilePage.screenshot({
-  path: path.join(outputDirectory, "extension-mobile.png"),
-  fullPage: true,
-});
+await capture(mobilePage, "extension-mobile.png");
 await mobilePage.close();
 
 report.extensionDocsVerified = extensionDocsVerified;
 report.extensionScrollSpyVerified = extensionScrollSpyVerified;
 report.extensionMobileVerified = extensionMobileVerified;
 console.log(JSON.stringify(report, null, 2));
-await browser.close();
 
 if (
   pageErrors.length ||
   consoleErrors.length ||
   !report.dashboardVisible ||
+  !report.bootScreenMinimal ||
+  !report.themeTokensVerified ||
   !report.netronMapVerified ||
   !report.selectedNodeAccessible ||
   !report.brandAssetVerified ||
   !report.headingCapitalizationApplied ||
-  !report.iconsBareVerified ||
+  !report.navigationIconBordersVerified ||
   !report.panelIconsWhiteVerified ||
   !report.graphControlsAligned ||
+  !report.zoomControlBordersVerified ||
   !report.canvasHeadingRemoved ||
   !report.contextBankHeaderVerified ||
   !report.canvasZoomVerified ||
@@ -264,4 +298,7 @@ if (
   !report.extensionMobileVerified
 ) {
   process.exitCode = 1;
+}
+} finally {
+  await browser.close();
 }

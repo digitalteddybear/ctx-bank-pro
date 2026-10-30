@@ -1,10 +1,9 @@
 "use client";
 
 import { create } from "zustand";
-import { initialGraph } from "./seed";
 import type { GraphSnapshot } from "./types";
 
-export type ViewMode = "dashboard" | "network" | "sources";
+export type ViewMode = "dashboard" | "network" | "sources" | "agents";
 export type SyncState = "connecting" | "live" | "stale" | "error";
 
 interface GraphStore {
@@ -28,7 +27,7 @@ interface GraphStore {
 }
 
 export const useGraphStore = create<GraphStore>((set) => ({
-  snapshot: initialGraph,
+  snapshot: { schemaVersion: "1.0", generatedAt: "", nodes: [], links: [], activities: [] },
   selectedNodeId: null,
   viewMode: "dashboard",
   searchQuery: "",
@@ -61,7 +60,11 @@ export const useGraphStore = create<GraphStore>((set) => ({
       selectedNodeId,
       inspectorOpen: Boolean(selectedNodeId),
     }),
-  setViewMode: (viewMode) => set({ viewMode }),
+  setViewMode: (viewMode) =>
+    set((state) => ({
+      viewMode,
+      inspectorOpen: viewMode === "network" ? state.inspectorOpen : false,
+    })),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   setInspectorOpen: (inspectorOpen) => set({ inspectorOpen }),
   setCommandOpen: (commandOpen) => set({ commandOpen }),

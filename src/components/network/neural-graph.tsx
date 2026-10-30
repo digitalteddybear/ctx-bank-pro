@@ -1,204 +1,458 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { ForceGraphMethods, LinkObject, NodeObject } from "react-force-graph-3d";
-import { nodeTypeColors } from "@/lib/graph/palette";
-import type { KnowledgeLink, KnowledgeNode } from "@/lib/graph/types";
+import { forceSimulation } from "d3-force";
+import { LocateFixed, Minus, Network, Plus } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { IconButton } from "@/components/ui/primitives";
+import { getNeighborhood } from "@/lib/graph/engine";
+import { buildOrbitalLayout, type OrbitNode, type OrbitLink } from "@/lib/graph/orbital-layout";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
 import { useGraphStore } from "@/lib/graph/store";
 
-const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), {
-  ssr: false,
-}) as unknown as typeof import("react-force-graph-3d").default;
+type GraphNode = OrbitNode;
+type GraphLink = OrbitLink;
 
-type RenderNodeData = KnowledgeNode & {
-  color: string;
-  val: number;
+type GraphSettings = {
+  nodeSize: number;
+  linkThickness: number;
+  textFadeThreshold: number;
+  centerForce: number;
+  repelForce: number;
+  linkForce: number;
+  linkDistance: number;
 };
 
-type RenderLinkData = Omit<KnowledgeLink, "source" | "target">;
-type RenderNode = NodeObject<RenderNodeData>;
-type RenderLink = LinkObject<RenderNodeData, RenderLinkData>;
+type Transform = { x: number; y: number; scale: number };
 
-function endpointId(endpoint: string | number | RenderNode | undefined) {
-  return typeof endpoint === "object" ? endpoint.id : endpoint;
+const graphViewStorageKey = "ctxbankpro:neural-graph-view";
+const minimumGraphZoom = 0.1;
+const maximumGraphZoom = 5;
+const graphMotionDuration = 260;
+
+function readStoredGraphView(): Transform | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem(graphViewStorageKey) ?? "null") as Partial<Transform> | null;
+    if (!value || ![value.x, value.y, value.scale].every((item) => typeof item === "number")) return null;
+    return value as Transform;
+  } catch {
+    return null;
+  }
 }
 
-export function NeuralGraph({
-  compact = false,
-  onReady,
-}: {
-  compact?: boolean;
-  onReady?: () => void;
-}) {
-  const graphRef = useRef<
-    | ForceGraphMethods<
-        NodeObject<RenderNodeData>,
-        LinkObject<RenderNodeData, RenderLinkData>
-      >
-    | undefined
-  >(undefined);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 800, height: 560 });
-  const [ready, setReady] = useState(false);
+const defaultSettings: GraphSettings = {
+  nodeSize: 1,
+  linkThickness: 1,
+  textFadeThreshold: 0.8,
+  centerForce: 0.05,
+  repelForce: -300,
+  linkForce: 0.7,
+  linkDistance: 45,
+};
+
+const nodeRadius = (node: GraphNode, nodeSize: number) =>
+  ([24, 14, 5, 6, 6, 10][node.tier] ?? 6) * nodeSize;
+
+function labelOpacity(scale: number, threshold: number) {
+  const minimum = threshold * 0.75;
+  const maximum = threshold * 1.5;
+  return Math.max(0, Math.min(1, (scale - minimum) / (maximum - minimum)));
+}
+
+export function NeuralGraph({ compact = false }: { compact?: boolean }) {
+  const [initialStoredView] = useState<Transform | null>(readStoredGraphView);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const simulationRef = useRef<ReturnType<typeof forceSimulation<GraphNode>> | null>(null);
+  const nodesRef = useRef<GraphNode[]>([]);
+  const linksRef = useRef<GraphLink[]>([]);
+  const transformRef = useRef<Transform>(initialStoredView ?? { x: 0, y: 0, scale: compact ? 0.72 : 1 });
+  const hasInitializedViewRef = useRef(false);
+  const transformAnimationRef = useRef<number | null>(null);
+  const hasObservedSelectionRef = useRef(false);
+  const previousSelectedNodeIdRef = useRef<string | null>(null);
+  const interactionRef = useRef<{ pointerId: number | null; mode: "drag" | "pan" | null; node: GraphNode | null; x: number; y: number; moved: boolean }>({ pointerId: null, mode: null, node: null, x: 0, y: 0, moved: false });
+  const settingsRef = useRef(defaultSettings);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const hoveredIdRef = useRef<string | null>(null);
+  const selectedCohortRef = useRef<{ id: string; recordId: string } | null>(null);
+  const [isInteracting, setIsInteracting] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const snapshot = useGraphStore((state) => state.snapshot);
   const selectedNodeId = useGraphStore((state) => state.selectedNodeId);
-  const highlightedNodeIds = useGraphStore((state) => state.highlightedNodeIds);
+  const selectedNodeIdRef = useRef<string | null>(null);
   const selectNode = useGraphStore((state) => state.selectNode);
   const setHighlightedNodes = useGraphStore((state) => state.setHighlightedNodes);
 
-  const activeNodeIds = useMemo(
-    () => new Set(snapshot.nodes.filter((node) => !node.deletedAt).map((node) => node.id)),
-    [snapshot.nodes],
+  useEffect(() => {
+    hoveredIdRef.current = hoveredId;
+  }, [hoveredId]);
+
+  useEffect(() => {
+    selectedNodeIdRef.current = selectedNodeId;
+    if (selectedCohortRef.current?.recordId !== selectedNodeId) selectedCohortRef.current = null;
+  }, [selectedNodeId]);
+
+  const persistView = useCallback(() => {
+    if (compact || typeof window === "undefined") return;
+    window.sessionStorage.setItem(graphViewStorageKey, JSON.stringify(transformRef.current));
+  }, [compact]);
+
+  useEffect(() => {
+    const { nodes, links } = buildOrbitalLayout(snapshot);
+    simulationRef.current?.stop();
+    const simulation = forceSimulation(nodes)
+      .alphaDecay(0.08)
+      .velocityDecay(0.4);
+    simulationRef.current = simulation;
+    nodesRef.current = nodes;
+    linksRef.current = links;
+    if (selectedCohortRef.current && !nodes.some(node => node.id === selectedCohortRef.current?.id)) selectedCohortRef.current = null;
+    return () => {
+      simulation.stop();
+    };
+  }, [snapshot]);
+
+  const visibleNodes = useCallback(
+    () => new Set(nodesRef.current.map((node) => node.id)),
+    [],
   );
 
-  const graphData = useMemo(() => {
-    const highlighted = new Set(highlightedNodeIds);
-    const nodes: RenderNode[] = snapshot.nodes
-      .filter((node) => !node.deletedAt)
-      .map((node) => {
-        const isSelected = selectedNodeId === node.id;
-        const isDimmed = highlighted.size > 0 && !highlighted.has(node.id);
-        return {
-          ...node,
-          color: isDimmed ? "#303746" : nodeTypeColors[node.type],
-          val: isSelected ? 8 : node.type === "organization" ? 7 : node.type === "source" ? 3 : 5,
-        };
+  useEffect(() => {
+    const host = hostRef.current;
+    const canvas = canvasRef.current;
+    if (!host || !canvas) return;
+    let frame = 0;
+    let width = 0;
+    let height = 0;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const resize = () => {
+      const bounds = host.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      width = Math.max(1, bounds.width);
+      height = Math.max(1, bounds.height);
+      canvas.width = Math.floor(width * ratio);
+      canvas.height = Math.floor(height * ratio);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      if (!hasInitializedViewRef.current) {
+        transformRef.current = initialStoredView && !compact ? initialStoredView : { x: width / 2, y: height / 2, scale: Math.max(0.1, Math.min(width - 80, height - (compact ? 60 : 150)) / 1440) };
+        hasInitializedViewRef.current = true;
+      }
+      render();
+    };
+
+    const render = () => {
+      const ratio = window.devicePixelRatio || 1;
+      const transform = transformRef.current;
+      const css = getComputedStyle(canvas);
+      const color = (name: string) => css.getPropertyValue(`--orbit-${name}`).trim();
+      const visible = visibleNodes();
+      const activeSelectedNodeId = selectedNodeIdRef.current;
+      const focusId = selectedCohortRef.current?.id ?? hoveredIdRef.current ?? activeSelectedNodeId;
+      const connected = new Set<string>();
+      if (focusId) {
+        connected.add(focusId);
+        let ancestor = nodesRef.current.find(node => node.id === focusId);
+        const members = new Set(ancestor?.members ?? []);
+        nodesRef.current.forEach(node => { if (members.has(node.id) || node.members.some(id => members.has(id))) connected.add(node.id); });
+        while (ancestor?.parentId) {
+          connected.add(ancestor.parentId);
+          ancestor = nodesRef.current.find(node => node.id === ancestor?.parentId);
+        }
+      }
+
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.fillStyle = getComputedStyle(host).backgroundColor;
+      context.fillRect(0, 0, width, height);
+      context.save();
+      context.translate(transform.x, transform.y);
+      context.scale(transform.scale, transform.scale);
+      context.lineCap = "round";
+
+      linksRef.current.forEach((link) => {
+        const source = typeof link.source === "string" ? undefined : link.source;
+        const target = typeof link.target === "string" ? undefined : link.target;
+        if (!source || !target || source.x === undefined || source.y === undefined || target.x === undefined || target.y === undefined) return;
+        const sourceId = source.id;
+        const targetId = target.id;
+        if (!visible.has(sourceId) || !visible.has(targetId)) return;
+        const highlighted = Boolean(focusId && connected.has(sourceId) && connected.has(targetId));
+        const dimmed = Boolean(focusId && !highlighted);
+        context.beginPath();
+        context.moveTo(source.x, source.y);
+        context.lineTo(target.x, target.y);
+        context.strokeStyle = highlighted ? color("focus") : color("edge");
+        context.globalAlpha = dimmed ? 0.08 : highlighted ? 1 : [0.8, 0.8, 0.6, 0.4, 0.3, 0.3][target.tier];
+        context.lineWidth = (highlighted ? 2 : target.tier === 1 ? 1.5 : target.tier === 5 ? 0.8 : 1) / transform.scale;
+        context.stroke();
       });
 
-    const links: RenderLink[] = snapshot.links
-      .filter(
-        (item) =>
-          !item.deletedAt && activeNodeIds.has(item.source) && activeNodeIds.has(item.target),
-      )
-      .map((item) => ({ ...item }));
-
-    return { nodes, links };
-  }, [activeNodeIds, highlightedNodeIds, selectedNodeId, snapshot.links, snapshot.nodes]);
-
-  useEffect(() => {
-    const element = containerRef.current;
-    if (!element) return;
-
-    const update = () => {
-      const rect = element.getBoundingClientRect();
-      setSize({ width: Math.max(320, rect.width), height: Math.max(320, rect.height) });
+      const labels = labelOpacity(transform.scale, settingsRef.current.textFadeThreshold);
+      nodesRef.current.forEach((node) => {
+        if (!visible.has(node.id) || node.x === undefined || node.y === undefined) return;
+        const highlighted = node.id === focusId || node.id === activeSelectedNodeId;
+        const dimmed = Boolean(focusId && !connected.has(node.id));
+        const radius = nodeRadius(node, settingsRef.current.nodeSize) * (node.id === hoveredIdRef.current ? 1.25 : 1);
+        context.beginPath();
+        if (node.tier === 3 || node.tier === 4) context.roundRect(node.x-radius, node.y-radius, radius*2, radius*2, 2);
+        else context.arc(node.x, node.y, radius, 0, Math.PI * 2);
+        context.fillStyle = node.tier === 0 || node.tier === 5 ? color("panel") : color(node.color);
+        context.globalAlpha = dimmed ? 0.12 : 1;
+        context.fill();
+        context.strokeStyle = highlighted ? color("focus") : node.tier === 0 ? color("green") : color("border");
+        context.lineWidth = highlighted ? (node.id === activeSelectedNodeId ? 3 : 2) / transform.scale : node.tier === 0 ? 4 : 0.8;
+        if (highlighted || node.tier === 0 || node.tier === 5) context.stroke();
+        if (node.tier === 0 || node.tier === 1) {
+          context.strokeStyle = node.tier === 0 ? color("green") : color("glyph");
+          context.lineWidth = 1.5;
+          context.strokeRect(node.x-5, node.y-7, 10, 14);
+          for (const dx of [-2,2]) for (const dy of [-3,1]) context.strokeRect(node.x+dx-0.5,node.y+dy,1,1);
+        }
+        if (node.tier === 5 && transform.scale > 0.45) {
+          context.fillStyle = color("text");
+          context.font = "8px Inter, sans-serif";
+          context.textAlign = "center";
+          context.textBaseline = "middle";
+          context.fillText(node.label.split(/\s+/).slice(0,2).map(word => word[0]).join(""), node.x, node.y);
+        }
+        if (node.tier < 2 || highlighted || (transform.scale > 1.2 && node.tier === 5)) {
+          context.globalAlpha = (dimmed ? 0.12 : highlighted ? 1 : 0.86) * labels;
+          if (node.tier < 2 || highlighted) context.globalAlpha = dimmed ? 0.12 : 1;
+          context.fillStyle = color("text");
+          context.font = `${11 / transform.scale}px Inter, system-ui, sans-serif`;
+          context.textAlign = node.tier < 2 ? "center" : "left";
+          context.textBaseline = "middle";
+          context.fillText(node.label, node.x + (node.tier < 2 ? 0 : radius + 5 / transform.scale), node.y + (node.tier < 2 ? radius + 14 / transform.scale : 0));
+        }
+      });
+      context.restore();
     };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => observer.disconnect();
+
+    const draw = () => {
+      render();
+      frame = window.requestAnimationFrame(draw);
+    };
+
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(host);
+    frame = window.requestAnimationFrame(draw);
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+    };
+  }, [compact, initialStoredView, visibleNodes]);
+
+  const graphPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const transform = transformRef.current;
+    return { x: (event.clientX - bounds.left - transform.x) / transform.scale, y: (event.clientY - bounds.top - transform.y) / transform.scale };
+  };
+
+  const hitNode = (point: { x: number; y: number }) => nodesRef.current.find((node) => {
+    if (node.x === undefined || node.y === undefined || !visibleNodes().has(node.id)) return false;
+    return Math.hypot(point.x - node.x, point.y - node.y) <= nodeRadius(node, settingsRef.current.nodeSize) + 2;
+  }) ?? null;
+
+  const stopTransformAnimation = useCallback(() => {
+    if (transformAnimationRef.current !== null) {
+      cancelAnimationFrame(transformAnimationRef.current);
+      transformAnimationRef.current = null;
+    }
   }, []);
 
-  useEffect(() => {
-    if (!ready || !graphRef.current) return;
-    const controls = graphRef.current.controls() as {
-      autoRotate?: boolean;
-      autoRotateSpeed?: number;
-      enableDamping?: boolean;
-      dampingFactor?: number;
+  const animateTransform = useCallback((target: Transform) => {
+    stopTransformAnimation();
+    const start = { ...transformRef.current };
+    const startedAt = performance.now();
+    const duration = graphMotionDuration;
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = 1 - (1 - progress) ** 3;
+      transformRef.current = {
+        x: start.x + (target.x - start.x) * eased,
+        y: start.y + (target.y - start.y) * eased,
+        scale: start.scale + (target.scale - start.scale) * eased,
+      };
+      if (progress < 1) {
+        transformAnimationRef.current = requestAnimationFrame(step);
+      } else {
+        transformAnimationRef.current = null;
+        persistView();
+      }
     };
-    if (controls) {
-      controls.autoRotate = !compact;
-      controls.autoRotateSpeed = 0.32;
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.08;
-    }
-  }, [compact, ready]);
+    transformAnimationRef.current = requestAnimationFrame(step);
+  }, [persistView, stopTransformAnimation]);
 
-  useEffect(() => {
-    if (ready) return;
-    const fallback = window.setTimeout(() => {
-      setReady(true);
-      graphRef.current?.zoomToFit(500, compact ? 36 : 64);
-      onReady?.();
-    }, compact ? 1_600 : 2_000);
-    return () => window.clearTimeout(fallback);
-  }, [compact, onReady, ready]);
+  const changeZoom = (factor: number) => {
+    const host = hostRef.current;
+    if (!host) return;
+    const bounds = host.getBoundingClientRect();
+    const start = transformRef.current;
+    const scale = Math.max(minimumGraphZoom, Math.min(maximumGraphZoom, start.scale * factor));
+    const ratio = scale / start.scale;
+    animateTransform({
+      x: bounds.width / 2 - (bounds.width / 2 - start.x) * ratio,
+      y: bounds.height / 2 - (bounds.height / 2 - start.y) * ratio,
+      scale,
+    });
+  };
 
-  useEffect(() => {
-    if (!selectedNodeId || !graphRef.current) return;
-    const node = graphData.nodes.find((item) => item.id === selectedNodeId);
-    if (!node || node.x === undefined || node.y === undefined || node.z === undefined) return;
-
-    const distance = compact ? 150 : 300;
-    const ratio = 1 + distance / Math.hypot(node.x, node.y, node.z);
-    graphRef.current.cameraPosition(
-      { x: node.x * ratio, y: node.y * ratio, z: node.z * ratio },
-      { x: node.x, y: node.y, z: node.z },
-      700,
+  const returnToGraph = () => {
+    const host = hostRef.current;
+    if (!host) return;
+    const bounds = host.getBoundingClientRect();
+    const positioned = nodesRef.current.filter((node) => node.x !== undefined && node.y !== undefined);
+    if (!positioned.length) return;
+    const minX = Math.min(...positioned.map((node) => node.x as number));
+    const maxX = Math.max(...positioned.map((node) => node.x as number));
+    const minY = Math.min(...positioned.map((node) => node.y as number));
+    const maxY = Math.max(...positioned.map((node) => node.y as number));
+    const graphWidth = Math.max(1, maxX - minX);
+    const graphHeight = Math.max(1, maxY - minY);
+    const padding = 64;
+    const scale = Math.max(
+      minimumGraphZoom,
+      Math.min(maximumGraphZoom, (bounds.width - padding) / graphWidth, (bounds.height - padding) / graphHeight),
     );
-  }, [compact, graphData.nodes, ready, selectedNodeId]);
+    animateTransform({
+      x: bounds.width / 2 - ((minX + maxX) / 2) * scale,
+      y: bounds.height / 2 - ((minY + maxY) / 2) * scale,
+      scale,
+    });
+  };
+
+  const activeNodeCount = snapshot.nodes.filter((node) => !node.deletedAt).length;
+  const activeLinkCount = snapshot.links.filter((link) => !link.deletedAt).length;
+
+  useEffect(() => {
+    const previousSelectedNodeId = previousSelectedNodeIdRef.current;
+    previousSelectedNodeIdRef.current = selectedNodeId;
+    if (!hasObservedSelectionRef.current) {
+      hasObservedSelectionRef.current = true;
+      return;
+    }
+    if (!selectedNodeId || compact || previousSelectedNodeId === selectedNodeId) return;
+    if (selectedCohortRef.current?.recordId === selectedNodeId) return;
+    const node = nodesRef.current.find((item) => item.id === selectedNodeId);
+    const host = hostRef.current;
+    if (!node || node.x === undefined || node.y === undefined || !host) return;
+    const bounds = host.getBoundingClientRect();
+    const current = transformRef.current;
+    const scale = Math.max(current.scale, 0.9);
+    animateTransform({
+      x: bounds.width / 2 - node.x * scale,
+      y: bounds.height / 2 - node.y * scale,
+      scale,
+    });
+  }, [animateTransform, compact, selectedNodeId]);
 
   return (
-    <div className="neural-graph" ref={containerRef}>
-      {!ready && (
-        <div className="graph-loading">
-          <div className="graph-loading__field" />
-          <span>Rendering graph</span>
-        </div>
-      )}
-      <ForceGraph3D<RenderNodeData, RenderLinkData>
-        ref={graphRef}
-        width={size.width}
-        height={size.height}
-        graphData={graphData}
-        backgroundColor="rgba(0,0,0,0)"
-        showNavInfo={false}
-        enableNodeDrag
-        controlType="orbit"
-        nodeLabel={(node) => `${node.label} · ${node.type.replaceAll("_", " ")}`}
-        nodeColor={(node) => node.color}
-        nodeVal={(node) => node.val}
-        nodeOpacity={0.96}
-        nodeResolution={compact ? 10 : 14}
-        linkColor={(link) => {
-          const active =
-            selectedNodeId &&
-            (endpointId(link.source) === selectedNodeId || endpointId(link.target) === selectedNodeId);
-          return active ? "rgba(88, 211, 219, 0.82)" : "rgba(126, 147, 179, 0.22)";
+    <VStack className="neural-graph neural-graph--orbital" ref={hostRef}>
+      <canvas
+        aria-label="Interactive knowledge graph"
+        onContextMenu={(event) => event.preventDefault()}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          stopTransformAnimation();
+          const point = graphPoint(event);
+          const node = hitNode(point);
+          setIsInteracting(true);
+          interactionRef.current = { pointerId: event.pointerId, mode: node ? "drag" : "pan", node, x: event.clientX, y: event.clientY, moved: false };
+          event.currentTarget.setPointerCapture(event.pointerId);
         }}
-        linkWidth={(link) => {
-          const active =
-            selectedNodeId &&
-            (endpointId(link.source) === selectedNodeId || endpointId(link.target) === selectedNodeId);
-          return active ? 1.15 : 0.42;
-        }}
-        linkOpacity={0.85}
-        linkDirectionalParticles={(link) => {
-          const active =
-            selectedNodeId &&
-            (endpointId(link.source) === selectedNodeId || endpointId(link.target) === selectedNodeId);
-          return active ? 2 : 0;
-        }}
-        linkDirectionalParticleWidth={1.15}
-        linkDirectionalParticleSpeed={0.004}
-        linkDirectionalParticleColor={() => "#58D3DB"}
-        d3AlphaDecay={0.025}
-        d3VelocityDecay={0.35}
-        warmupTicks={compact ? 45 : 70}
-        cooldownTicks={compact ? 75 : 110}
-        onNodeClick={(node) => {
-          selectNode(node.id);
-          setHighlightedNodes([]);
-        }}
-        onBackgroundClick={() => {
-          selectNode(null);
-          setHighlightedNodes([]);
-        }}
-        onEngineStop={() => {
-          if (!ready) {
-            setReady(true);
-            graphRef.current?.zoomToFit(650, compact ? 46 : 72);
-            onReady?.();
+        onPointerMove={(event) => {
+          const interaction = interactionRef.current;
+          if (interaction.pointerId === event.pointerId && interaction.mode) {
+            interaction.moved ||= Math.hypot(event.clientX - interaction.x, event.clientY - interaction.y) > 3;
+            if (interaction.moved) {
+              transformRef.current = { ...transformRef.current, x: transformRef.current.x + event.movementX, y: transformRef.current.y + event.movementY };
+            }
+            return;
           }
+          setHoveredId(hitNode(graphPoint(event))?.id ?? null);
+          const bounds = event.currentTarget.getBoundingClientRect();
+          setTooltipPosition({ x: Math.max(110, Math.min(bounds.width-110, event.clientX-bounds.left)), y: Math.max(64, event.clientY-bounds.top) });
         }}
+        onPointerUp={(event) => {
+          const interaction = interactionRef.current;
+          if (interaction.pointerId !== event.pointerId) return;
+          if (interaction.node) {
+            if (!interaction.moved) {
+              const cohort = interaction.node.tier >= 1 && interaction.node.tier < 5;
+              const recordId = interaction.node.tier >= 2 && interaction.node.tier < 5 ? interaction.node.members[0] ?? interaction.node.recordId : interaction.node.recordId;
+              selectedCohortRef.current = cohort ? { id: interaction.node.id, recordId } : null;
+              selectNode(recordId);
+              setHighlightedNodes(
+                cohort ? interaction.node.members : getNeighborhood(snapshot, interaction.node.id, 1).nodes.map((node) => node.id),
+              );
+            }
+          } else if (!interaction.moved) {
+            selectedCohortRef.current = null;
+            setHoveredId(null);
+            selectNode(null);
+            setHighlightedNodes([]);
+          }
+          interactionRef.current = { pointerId: null, mode: null, node: null, x: 0, y: 0, moved: false };
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+          setIsInteracting(false);
+          persistView();
+        }}
+        onPointerCancel={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+          interactionRef.current = { pointerId: null, mode: null, node: null, x: 0, y: 0, moved: false };
+          setIsInteracting(false);
+          persistView();
+        }}
+        onPointerLeave={() => {
+          if (!isInteracting) setHoveredId(null);
+        }}
+        className={`graph-canvas${hoveredId ? " graph-canvas--node-hover" : ""}${isInteracting ? " graph-canvas--interacting" : ""}`}
+        onWheel={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          stopTransformAnimation();
+          const bounds = event.currentTarget.getBoundingClientRect();
+          const transform = transformRef.current;
+          const cursorX = event.clientX - bounds.left;
+          const cursorY = event.clientY - bounds.top;
+          const nextScale = Math.max(
+            minimumGraphZoom,
+            Math.min(maximumGraphZoom, transform.scale * Math.exp(-event.deltaY * 0.0015)),
+          );
+          const scaleRatio = nextScale / transform.scale;
+          transformRef.current = { x: cursorX - (cursorX - transform.x) * scaleRatio, y: cursorY - (cursorY - transform.y) * scaleRatio, scale: nextScale };
+          requestAnimationFrame(() => {
+            persistView();
+          });
+        }}
+        ref={canvasRef}
       />
-      <div className="graph-vignette" aria-hidden="true" />
-      <div className="graph-hint">
-        <span className="graph-hint__mouse" />
-        Drag to rotate · scroll to zoom
-      </div>
-    </div>
+      {!compact && (
+        <>
+          <HStack className="graph-canvas-toolbar" aria-label="Knowledge graph controls">
+            <IconButton label="Return to graph" onClick={returnToGraph}><LocateFixed size={15} /></IconButton>
+            <IconButton label="Zoom out" onClick={() => changeZoom(0.78)}><Minus size={15} /></IconButton>
+            <IconButton label="Zoom in" onClick={() => changeZoom(1.28)}><Plus size={15} /></IconButton>
+          </HStack>
+          <HStack className="graph-canvas-status">
+            <Network size={12} />
+            {activeNodeCount} nodes · {activeLinkCount} links
+          </HStack>
+        </>
+      )}
+      {hoveredId && !isInteracting && <VStack className="orbit-tooltip" role="tooltip" style={{ left: tooltipPosition.x, top: tooltipPosition.y }} gap={1}>
+        <Text weight="semibold">{nodesRef.current.find(node => node.id === hoveredId)?.label}</Text>
+        <Text type="supporting" color="secondary">{nodesRef.current.find(node => node.id === hoveredId)?.classification}</Text>
+      </VStack>}
+    </VStack>
   );
 }

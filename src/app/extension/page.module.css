@@ -2,10 +2,21 @@
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
+  font-family: var(--font-sans);
+  text-transform: none;
+}
+
+.page :not(svg):not(path) {
+  font-family: var(--font-sans);
+  text-transform: none;
 }
 
 .page svg {
   color: #fff;
+}
+
+:global([data-theme="light"]) .page svg {
+  color: var(--foreground);
 }
 
 .header {
@@ -13,7 +24,7 @@
   background: var(--background);
   border-bottom: 1px solid var(--border);
   display: flex;
-  height: 68px;
+  height: var(--topbar-height);
   justify-content: space-between;
   padding: 0 28px;
   position: sticky;
@@ -38,14 +49,14 @@
 .mark {
   align-items: center;
   display: flex;
-  height: 34px;
+  height: 38px;
   justify-content: center;
-  width: 34px;
+  width: 122px;
 }
 
 .mark img {
   height: auto;
-  width: 30px;
+  width: 122px;
 }
 
 .brandDivider {
@@ -98,7 +109,6 @@
   top: 104px;
 }
 
-.navLabel,
 .eyebrow,
 .sectionLabel {
   color: var(--muted-foreground);
@@ -106,38 +116,7 @@
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.nav ol {
-  border-left: 1px solid var(--border);
-  list-style: none;
-  margin: 14px 0 0;
-  padding: 2px 0 2px 14px;
-}
-
-.nav li + li {
-  margin-top: 3px;
-}
-
-.nav a {
-  border-radius: 6px;
-  color: var(--muted-foreground);
-  display: block;
-  font-size: 12px;
-  padding: 7px 9px;
-  text-decoration: none;
-}
-
-.nav a:hover {
-  background: var(--accent);
-  color: var(--accent-foreground);
-}
-
-.nav a.navActive {
-  background: var(--accent);
-  color: var(--primary);
-  font-weight: 600;
+  text-transform: none;
 }
 
 .main {
@@ -164,7 +143,7 @@
 .page h4,
 .page h5,
 .page h6 {
-  text-transform: capitalize;
+  text-transform: none;
 }
 
 .lede {
@@ -300,7 +279,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-align: left;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .table th,

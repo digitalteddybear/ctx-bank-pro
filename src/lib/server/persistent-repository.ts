@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { calculateMetrics, findShortestPath, getNeighborhood, searchGraph } from "@/lib/graph/engine";
-import { initialGraph } from "@/lib/graph/seed";
+import { loadLeadGraph } from "./lead-corpus";
 import type {
   GraphActivity,
   GraphSnapshot,
@@ -14,7 +14,7 @@ import type {
 
 const runtimePath =
   process.env.GRAPH_RUNTIME_PATH ??
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "runtime-graph.json");
+  path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "asp-invest", "runtime-graph.json");
 const persistToDisk = process.env.GRAPH_PERSISTENCE !== "memory";
 
 const timestamp = () => new Date().toISOString();
@@ -25,26 +25,38 @@ let writeQueue = Promise.resolve();
 let diskSignature = "";
 
 async function loadSnapshot(): Promise<GraphSnapshot> {
+  const corpus = await loadLeadGraph();
+  const combine = (saved: GraphSnapshot): GraphSnapshot => {
+    const sourceIds = new Set(corpus.nodes.map((node) => node.id));
+    const sourceLinkIds = new Set(corpus.links.map((link) => link.id));
+    const tombstones = new Map(saved.nodes.filter((node) => node.deletedAt).map((node) => [node.id, node]));
+    return {
+      ...corpus,
+      generatedAt: saved.generatedAt > corpus.generatedAt ? saved.generatedAt : corpus.generatedAt,
+      nodes: [...corpus.nodes.map((node) => tombstones.get(node.id) ?? node), ...saved.nodes.filter((node) => !sourceIds.has(node.id) && !node.id.startsWith("lead-") && !node.id.startsWith("segment-"))],
+      links: [...corpus.links.map((link) => tombstones.has(link.source) || tombstones.has(link.target) ? { ...link, deletedAt: tombstones.get(link.source)?.deletedAt ?? tombstones.get(link.target)?.deletedAt } : link), ...saved.links.filter((link) => !sourceLinkIds.has(link.id) && !link.id.startsWith("link-lead-") && !link.id.startsWith("link-segment-"))],
+      activities: [...corpus.activities, ...saved.activities.filter((item) => !item.id.startsWith("corpus-"))],
+    };
+  };
   if (persistToDisk) {
     try {
       const stats = await fs.stat(runtimePath);
       const signature = `${stats.mtimeMs}:${stats.size}`;
       if (memorySnapshot && signature === diskSignature) {
-        return structuredClone(memorySnapshot);
+        return combine(structuredClone(memorySnapshot));
       }
       const raw = await fs.readFile(runtimePath, "utf8");
       memorySnapshot = JSON.parse(raw) as GraphSnapshot;
       diskSignature = signature;
-      return structuredClone(memorySnapshot);
+      return combine(structuredClone(memorySnapshot));
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code !== "ENOENT") throw error;
     }
   }
 
-  if (memorySnapshot) return structuredClone(memorySnapshot);
-  memorySnapshot = structuredClone(initialGraph);
-  return structuredClone(memorySnapshot);
+  if (memorySnapshot) return combine(structuredClone(memorySnapshot));
+  return corpus;
 }
 
 async function saveSnapshot(snapshot: GraphSnapshot) {
@@ -223,7 +235,7 @@ export const graphRepository = {
   },
 
   async reset() {
-    const snapshot = structuredClone(initialGraph);
+    const snapshot = await loadLeadGraph();
     await saveSnapshot(snapshot);
     return snapshot;
   },

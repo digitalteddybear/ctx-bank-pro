@@ -13,6 +13,7 @@ data/inbox
 data/runtime-graph.json
 data/runtime-graph.json.tmp
 dashboard.png
+boot.png
 network.png
 extension.png
 extension-mobile.png

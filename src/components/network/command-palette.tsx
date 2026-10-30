@@ -1,11 +1,26 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowRight, Command, Search, X } from "lucide-react";
+import { useMemo } from "react";
+import { Command, FileText, Network, Search } from "lucide-react";
+import {
+  CommandPalette as AstryxCommandPalette,
+  CommandPaletteInput,
+} from "@astryxdesign/core/CommandPalette";
+import type { SearchSource } from "@astryxdesign/core/Typeahead";
 import { searchGraph } from "@/lib/graph/engine";
-import { nodeTypeColors, nodeTypeLabels } from "@/lib/graph/palette";
+import { nodeTypeLabels } from "@/lib/graph/palette";
 import { useGraphStore } from "@/lib/graph/store";
-import { IconButton } from "@/components/ui/primitives";
+import type { KnowledgeNode } from "@/lib/graph/types";
+
+interface GraphCommandItem {
+  id: string;
+  label: string;
+  auxiliaryData: {
+    group: "Knowledge Bank" | "Navigate";
+    node?: KnowledgeNode;
+    detail: string;
+  };
+}
 
 export function CommandPalette() {
   const open = useGraphStore((state) => state.commandOpen);
@@ -14,98 +29,86 @@ export function CommandPalette() {
   const selectNode = useGraphStore((state) => state.selectNode);
   const setViewMode = useGraphStore((state) => state.setViewMode);
   const setHighlightedNodes = useGraphStore((state) => state.setHighlightedNodes);
-  const [query, setQuery] = useState("");
-  const [activeIndex, setActiveIndex] = useState(0);
 
-  const results = useMemo(() => searchGraph(snapshot, query, 8), [query, snapshot]);
+  const searchSource = useMemo<SearchSource<GraphCommandItem>>(
+    () => ({
+      bootstrap: () => [
+        {
+          id: "navigate-dashboard",
+          label: "Open Knowledge Bank Status",
+          auxiliaryData: { group: "Navigate", detail: "Dashboard overview" },
+        },
+        {
+          id: "navigate-network",
+          label: "Open Knowledge Bank",
+          auxiliaryData: { group: "Navigate", detail: "Explore the graph" },
+        },
+        {
+          id: "navigate-sources",
+          label: "Open Documents and Sources",
+          auxiliaryData: { group: "Navigate", detail: "Review uploads and source records" },
+        },
+        ...searchGraph(snapshot, "", 6).map(({ node, reasons }) => ({
+          id: `node-${node.id}`,
+          label: node.label,
+          auxiliaryData: {
+            group: "Knowledge Bank" as const,
+            node,
+            detail: `${nodeTypeLabels[node.type]} · ${reasons.join(" · ")}`,
+          },
+        })),
+      ],
+      search: (query) =>
+        searchGraph(snapshot, query, 12).map(({ node, reasons }) => ({
+          id: `node-${node.id}`,
+          label: node.label,
+          auxiliaryData: {
+            group: "Knowledge Bank" as const,
+            node,
+            detail: `${nodeTypeLabels[node.type]} · ${reasons.join(" · ")}`,
+          },
+        })),
+    }),
+    [snapshot],
+  );
 
-  if (!open) return null;
-
-  const choose = (id: string) => {
-    selectNode(id);
-    setHighlightedNodes([id]);
-    setViewMode("network");
+  const choose = (itemId: string) => {
+    if (itemId === "navigate-dashboard") setViewMode("dashboard");
+    if (itemId === "navigate-network") setViewMode("network");
+    if (itemId === "navigate-sources") setViewMode("sources");
+    if (itemId.startsWith("node-")) {
+      const nodeId = itemId.slice("node-".length);
+      selectNode(nodeId);
+      setHighlightedNodes([nodeId]);
+      setViewMode("network");
+    }
     setOpen(false);
   };
 
   return (
-    <div className="command-backdrop" role="presentation" onMouseDown={() => setOpen(false)}>
-      <div
-        className="command-palette"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Search graph nodes"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="command-input">
-          <Search size={18} />
-          <input
-            autoFocus
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setActiveIndex(0);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                setActiveIndex((index) => Math.min(results.length - 1, index + 1));
-              }
-              if (event.key === "ArrowUp") {
-                event.preventDefault();
-                setActiveIndex((index) => Math.max(0, index - 1));
-              }
-              if (event.key === "Enter" && results[activeIndex]) choose(results[activeIndex].node.id);
-              if (event.key === "Escape") setOpen(false);
-            }}
-            placeholder="Search node titles, descriptions, tags or types…"
-          />
-          <IconButton label="Close search" onClick={() => setOpen(false)}>
-            <X size={16} />
-          </IconButton>
-        </div>
-        <div className="command-meta">
+    <AstryxCommandPalette
+      isOpen={open}
+      label="Search the Knowledge Bank"
+      onOpenChange={setOpen}
+      onValueChange={choose}
+      searchSource={searchSource}
+      emptySearchText="No graph nodes match this search. Try a title, tag, description, or node type."
+      input={
+        <CommandPaletteInput
+          placeholder="Search nodes, descriptions, tags, and views…"
+          endContent={<Command size={14} aria-label="Command key" />}
+        />
+      }
+      renderItem={(item) => (
+        <>
+          {item.auxiliaryData.node ? <Network size={16} /> : <FileText size={16} />}
           <span>
-            <Command size={12} /> Weighted text search across node fields
+            <strong>{item.label}</strong>
+            <small>{item.auxiliaryData.detail}</small>
           </span>
-          <span>{results.length} results</span>
-        </div>
-        <div className="command-results">
-          {results.map((result, index) => (
-            <button
-              key={result.node.id}
-              className={index === activeIndex ? "is-active" : undefined}
-              onMouseEnter={() => setActiveIndex(index)}
-              onClick={() => choose(result.node.id)}
-            >
-              <span
-                className="result-node"
-                style={{ backgroundColor: nodeTypeColors[result.node.type] }}
-              />
-              <span className="result-copy">
-                <strong>{result.node.label}</strong>
-                <small>
-                  {nodeTypeLabels[result.node.type]} · {result.reasons.join(" · ")}
-                </small>
-              </span>
-              <span className="result-score">{Math.round(result.score * 100)}% match</span>
-              <ArrowRight size={15} />
-            </button>
-          ))}
-          {!results.length && (
-            <div className="command-empty">
-              No graph nodes match this query.
-            </div>
-          )}
-        </div>
-        <div className="command-footer">
-          <span>
-            <kbd>↑</kbd><kbd>↓</kbd> Navigate
-          </span>
-          <span><kbd>↵</kbd> Open</span>
-          <span><kbd>esc</kbd> Close</span>
-        </div>
-      </div>
-    </div>
+          <Search size={14} aria-hidden="true" />
+        </>
+      )}
+    />
   );
 }

@@ -1,13 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import Image from "next/image";
 import {
   Activity,
+  Bell,
   BookOpenText,
+  Building2,
   Boxes,
+  ChevronDown,
   CircleDot,
-  Command,
   Database,
   FileArchive,
   FileCheck2,
@@ -15,15 +16,26 @@ import {
   FileText,
   GitBranch,
   Home,
+  Menu,
   Network,
   Search,
   Server,
+  Settings,
+  Bot,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { ClickableCard } from "@astryxdesign/core/ClickableCard";
+import { Heading } from "@astryxdesign/core/Text";
+import { Button as AstryxButton } from "@astryxdesign/core/Button";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { SideNav, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
+import { Token } from "@astryxdesign/core/Token";
 import { BootSequence } from "./boot-sequence";
 import { CommandPalette } from "./command-palette";
 import { DocumentUpload } from "./document-upload";
-import { KnowledgeGraph2D } from "./knowledge-graph-2d";
+import { LeadColumns } from "./lead-columns";
 import { NeuralGraph } from "./neural-graph";
 import { NodeInspector } from "./node-inspector";
 import { calculateMetrics, getActiveGraph } from "@/lib/graph/engine";
@@ -31,12 +43,33 @@ import { nodeTypeColors, nodeTypeLabels } from "@/lib/graph/palette";
 import { useGraphStore } from "@/lib/graph/store";
 import type { GraphMetrics, GraphSnapshot, NodeType } from "@/lib/graph/types";
 import { Badge, Button, IconButton, Panel } from "@/components/ui/primitives";
+import { ThemeAwareBrand } from "@/components/ui/theme-aware-brand";
+import { ThemePreferenceControl } from "@/components/ui/theme-switch";
+import { AreaChart } from "@/components/dither-kit/area-chart";
+import { Area } from "@/components/dither-kit/area";
+import { Grid } from "@/components/dither-kit/grid";
+import { Tooltip } from "@/components/dither-kit/tooltip";
+import { XAxis } from "@/components/dither-kit/x-axis";
+import { YAxis } from "@/components/dither-kit/y-axis";
+import { AgentsView } from "./agents-view";
 
 const navItems = [
-  { id: "dashboard", label: "Knowledge Bank Status", icon: Home },
+  { id: "dashboard", label: "Home Dashboard", icon: Home },
   { id: "network", label: "Knowledge Bank", icon: Network },
-  { id: "sources", label: "Documents and sources", icon: Database },
+  { id: "sources", label: "Documents & Sources", icon: Database },
+  { id: "agents", label: "Agents", icon: Bot },
 ] as const;
+
+const pageTitleByView = {
+  dashboard: "Home",
+  network: "Knowledge Bank",
+  sources: "Documents & Sources",
+  agents: "Agents",
+} as const;
+
+const documentProcessingChartConfig = {
+  documents: { label: "Documents", color: "blue" },
+} as const;
 
 interface DocumentSummary {
   id: string;
@@ -69,18 +102,27 @@ interface RuntimeStatus {
   persistence: string;
 }
 
-function WorldCreatorsMark() {
+function CompanyProfileOverlay({
+  isOpen,
+  onOpenChange,
+}: {
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+}) {
   return (
-    <div className="wc-mark" aria-label="World Creators">
-      <Image
-        src="/assets/vector-2-header.svg"
-        alt=""
-        aria-hidden="true"
-        width={42}
-        height={20}
-        priority
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} purpose="info" width={400}>
+      <DialogHeader
+        onOpenChange={onOpenChange}
+        startContent={<Building2 size={18} />}
+        subtitle="Organization profile"
+        title="ASP Private Capital"
       />
-    </div>
+      <p>ASP Private Capital is the active organization for this Context Bank workspace.</p>
+      <dl>
+        <div><dt>Organization</dt><dd>ASP Private Capital</dd></div>
+        <div><dt>Workspace</dt><dd>Context Bank</dd></div>
+      </dl>
+    </Dialog>
   );
 }
 
@@ -90,27 +132,34 @@ function MetricCard({
   detail,
   icon: Icon,
   accent,
+  onClick,
 }: {
   label: string;
   value: string | number;
   detail: string;
   icon: typeof Activity;
   accent: string;
+  onClick: () => void;
 }) {
   return (
-    <Panel className="metric-card">
+    <ClickableCard
+      className="panel metric-card"
+      label={`${label}: ${value}. ${detail}`}
+      onClick={onClick}
+      padding={4}
+    >
       <div className="metric-card__top">
         <span className="metric-card__label">{label}</span>
         <span className="metric-card__icon" style={{ color: accent }}>
           <Icon size={16} />
         </span>
       </div>
-      <strong>{value}</strong>
+      <Heading level={2}>{value}</Heading>
       <span className="metric-card__detail">
         <span style={{ backgroundColor: accent }} />
         {detail}
       </span>
-    </Panel>
+    </ClickableCard>
   );
 }
 
@@ -157,10 +206,12 @@ function DashboardView({
   metrics,
   runtime,
   documents,
+  onComplete,
 }: {
   metrics: GraphMetrics;
   runtime: RuntimeStatus | null;
   documents: DocumentSummary[];
+  onComplete: () => Promise<void> | void;
 }) {
   const snapshot = useGraphStore((state) => state.snapshot);
   const setViewMode = useGraphStore((state) => state.setViewMode);
@@ -169,6 +220,11 @@ function DashboardView({
   const lastSyncedAt = useGraphStore((state) => state.lastSyncedAt);
   const active = getActiveGraph(snapshot);
   const pendingDocuments = documents.filter((document) => document.status === "ready_for_agent");
+  const documentProcessingTrend = useMemo(() => [
+    { stage: "Queued", documents: runtime?.ingestion.pending ?? pendingDocuments.length },
+    { stage: "Processed", documents: runtime?.ingestion.processed ?? 0 },
+    { stage: "Issues", documents: runtime?.ingestion.failed ?? 0 },
+  ], [pendingDocuments.length, runtime]);
 
   return (
     <motion.main
@@ -177,20 +233,6 @@ function DashboardView({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
     >
-      <div className="workspace-heading">
-        <div>
-          <div className="eyebrow">Graph and document status</div>
-          <h1>Knowledge Bank Status</h1>
-          <p>Counts and recent updates for nodes, links, indexed files and uploaded documents.</p>
-        </div>
-        <div className="workspace-heading__actions">
-          <Button variant="secondary" onClick={() => setViewMode("network")}>
-            Open Knowledge Bank
-            <Network size={15} />
-          </Button>
-        </div>
-      </div>
-
       <section className="metric-grid" aria-label="Knowledge base status">
         <MetricCard
           label="Active nodes"
@@ -198,6 +240,7 @@ function DashboardView({
           detail="Available for search and traversal"
           icon={CircleDot}
           accent="#58D3DB"
+          onClick={() => setViewMode("network")}
         />
         <MetricCard
           label="Active links"
@@ -205,6 +248,7 @@ function DashboardView({
           detail="Active links between nodes"
           icon={GitBranch}
           accent="#00B87A"
+          onClick={() => setViewMode("network")}
         />
         <MetricCard
           label="Indexed files"
@@ -212,6 +256,7 @@ function DashboardView({
           detail={`${runtime?.corpus.textualCount ?? 0} text-format files`}
           icon={FileArchive}
           accent="#58D3DB"
+          onClick={() => setViewMode("sources")}
         />
         <MetricCard
           label="Awaiting agent processing"
@@ -219,6 +264,7 @@ function DashboardView({
           detail={`${runtime?.ingestion.processed ?? 0} uploaded documents processed`}
           icon={FileClock}
           accent="#F7B928"
+          onClick={() => setViewMode("sources")}
         />
       </section>
 
@@ -226,11 +272,13 @@ function DashboardView({
         <Panel className="network-preview">
           <div className="panel-heading panel-heading--overlay">
             <div>
-              <div className="section-label">Current graph data</div>
               <h2>Knowledge Bank</h2>
             </div>
             <div className="panel-heading__meta">
-              <button onClick={() => setViewMode("network")}>Open Knowledge Bank</button>
+              <Button size="sm" variant="secondary" onClick={() => setViewMode("network")}>
+                <Network size={15} />
+                Open Knowledge Bank
+              </Button>
             </div>
           </div>
           <NeuralGraph compact />
@@ -244,8 +292,10 @@ function DashboardView({
           <Panel className="runtime-panel">
             <div className="panel-heading">
               <div>
-                <div className="section-label">Server connection</div>
-                <h2>Backend status</h2>
+                <h2 className="backend-status-title">
+                  Backend status
+                  <span className="backend-live-indicator">Live<i /></span>
+                </h2>
               </div>
               <Server size={17} />
             </div>
@@ -272,7 +322,6 @@ function DashboardView({
           <Panel className="activity-panel activity-panel--agent">
             <div className="panel-heading">
               <div>
-                <div className="section-label">Recent writes</div>
                 <h2>Graph change history</h2>
               </div>
               <Activity size={17} />
@@ -304,8 +353,7 @@ function DashboardView({
         <Panel className="knowledge-distribution">
           <div className="panel-heading">
             <div>
-              <div className="section-label">Node types</div>
-              <h2>Active nodes by type</h2>
+              <h2>Active nodes</h2>
             </div>
             <Boxes size={17} />
           </div>
@@ -335,15 +383,31 @@ function DashboardView({
         <Panel className="ingestion-panel">
           <div className="panel-heading">
             <div>
-              <div className="section-label">Upload processing</div>
-              <h2>Document processing status</h2>
+              <h2>Document processing</h2>
             </div>
-            <FileArchive size={17} />
+            <div className="panel-heading__meta">
+              <DocumentUpload onComplete={onComplete} />
+            </div>
           </div>
           <p>
             The server extracts text from uploaded files and divides it into chunks. Agents
             read those chunks, create nodes and links, then mark each document as processed.
           </p>
+          <div className="processing-chart" aria-label="Document processing distribution">
+            <AreaChart
+              animate
+              bloom="low"
+              config={documentProcessingChartConfig}
+              data={documentProcessingTrend}
+              margins={{ left: 28, right: 12, top: 8 }}
+            >
+              <Grid />
+              <XAxis dataKey="stage" />
+              <YAxis tickCount={3} />
+              <Tooltip labelKey="stage" />
+              <Area dataKey="documents" variant="dotted" />
+            </AreaChart>
+          </div>
           <div className="ingestion-summary">
             <span><strong>{runtime?.ingestion.pending ?? 0}</strong> awaiting agent processing</span>
             <span><strong>{runtime?.ingestion.failed ?? 0}</strong> text-extraction failures</span>
@@ -356,7 +420,7 @@ function DashboardView({
 
 function NetworkView() {
   const setCommandOpen = useGraphStore((state) => state.setCommandOpen);
-  const [renderer, setRenderer] = useState<"map" | "spatial">("map");
+  const [renderer, setRenderer] = useState<"map" | "spatial">("spatial");
 
   return (
     <motion.main
@@ -366,45 +430,50 @@ function NetworkView() {
     >
       <div className="network-canvas-heading">
         <div className="network-canvas-actions">
-          <div className="graph-view-switch" role="group" aria-label="Knowledge Bank view">
-            <button
-              type="button"
-              data-active={renderer === "map"}
-              onClick={() => setRenderer("map")}
-            >
-              2D map
-            </button>
-            <button
-              type="button"
-              data-active={renderer === "spatial"}
-              onClick={() => setRenderer("spatial")}
-            >
-              3D graph
-            </button>
-          </div>
-          <button className="network-search" onClick={() => setCommandOpen(true)}>
+          <SegmentedControl
+            className="network-view-toggle"
+            label="Knowledge Bank renderer"
+            onChange={(value) => setRenderer(value as "map" | "spatial")}
+            size="sm"
+            value={renderer}
+          >
+            <SegmentedControlItem label="2D map" value="map" />
+            <SegmentedControlItem label="3D graph" value="spatial" />
+          </SegmentedControl>
+          <Button className="network-search" size="sm" variant="secondary" onClick={() => setCommandOpen(true)}>
             <Search size={15} />
             Search nodes
             <kbd>⌘ K</kbd>
-          </button>
+          </Button>
         </div>
       </div>
       <div className="network-stage">
-        {renderer === "map" ? <KnowledgeGraph2D /> : <NeuralGraph />}
-        <div className="network-legend">
+        <AnimatePresence initial={false} mode="wait">
+          <motion.div
+            animate={{ opacity: 1 }}
+            className="graph-renderer"
+            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            key={renderer}
+            transition={{ duration: 0.14, ease: "easeOut" }}
+          >
+            {renderer === "map" ? <LeadColumns /> : <NeuralGraph />}
+          </motion.div>
+        </AnimatePresence>
+        {renderer === "spatial" && <div className="network-legend">
           {(["framework", "offer", "system", "source", "claim"] as NodeType[]).map((type) => (
             <span key={type}>
               <i style={{ backgroundColor: nodeTypeColors[type] }} />
               {nodeTypeLabels[type]}
             </span>
           ))}
-        </div>
+        </div>}
       </div>
     </motion.main>
   );
 }
 
-function SourcesView({ documents }: { documents: DocumentSummary[] }) {
+function SourcesView({ documents, onComplete }: { documents: DocumentSummary[]; onComplete: () => Promise<void> | void }) {
   const snapshot = useGraphStore((state) => state.snapshot);
   const selectNode = useGraphStore((state) => state.selectNode);
   const setViewMode = useGraphStore((state) => state.setViewMode);
@@ -416,20 +485,13 @@ function SourcesView({ documents }: { documents: DocumentSummary[] }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
     >
-      <div className="workspace-heading">
-        <div>
-          <div className="eyebrow">Uploaded documents and source nodes</div>
-          <h1>Documents And Knowledge Bank Sources</h1>
-          <p>Review uploaded files and open the graph nodes that reference source material.</p>
-        </div>
-        <Badge tone="cyan">{documents.length} uploaded documents</Badge>
+      <div className="sources-toolbar">
+        <DocumentUpload onComplete={onComplete} />
       </div>
-
-      {documents.length > 0 && (
+      {documents.length > 0 ? (
         <Panel className="document-inbox">
           <div className="panel-heading">
             <div>
-              <div className="section-label">Uploaded documents</div>
               <h2>Document processing queue</h2>
             </div>
             <FileClock size={17} />
@@ -468,17 +530,30 @@ function SourcesView({ documents }: { documents: DocumentSummary[] }) {
             ))}
           </div>
         </Panel>
+      ) : (
+        <EmptyState
+          actions={
+            <Button onClick={() => setViewMode("network")} variant="secondary">
+              Explore Knowledge Bank
+            </Button>
+          }
+          description="Upload a document from the global action bar to create a source record and start the ingestion workflow."
+          headingLevel={2}
+          icon={<FileArchive size={24} />}
+          title="No uploaded documents yet"
+        />
       )}
 
-      <Panel className="source-table">
-        <div className="source-table__head">
-          <span>Source node</span>
-          <span>Authority level</span>
-          <span>Links</span>
-          <span>Status</span>
-          <span />
-        </div>
-        {sourceNodes.map((node, index) => {
+      {sourceNodes.length > 0 ? (
+        <Panel className="source-table">
+          <div className="source-table__head">
+            <span>Source node</span>
+            <span>Authority level</span>
+            <span>Links</span>
+            <span>Status</span>
+            <span />
+          </div>
+          {sourceNodes.map((node, index) => {
           const linked = snapshot.links.filter(
             (link) => !link.deletedAt && (link.source === node.id || link.target === node.id),
           ).length;
@@ -508,8 +583,17 @@ function SourcesView({ documents }: { documents: DocumentSummary[] }) {
               <span className="source-table__index">{String(index + 1).padStart(2, "0")}</span>
             </button>
           );
-        })}
-      </Panel>
+          })}
+        </Panel>
+      ) : (
+        <EmptyState
+          description="Source nodes appear here once a document has been uploaded and added to the Knowledge Bank."
+          headingLevel={2}
+          icon={<Database size={24} />}
+          isCompact
+          title="No source nodes available"
+        />
+      )}
     </motion.main>
   );
 }
@@ -521,14 +605,19 @@ export function KnowledgeApp() {
   const setCommandOpen = useGraphStore((state) => state.setCommandOpen);
   const setSnapshot = useGraphStore((state) => state.setSnapshot);
   const setSyncState = useGraphStore((state) => state.setSyncState);
-  const syncState = useGraphStore((state) => state.syncState);
-  const lastSyncedAt = useGraphStore((state) => state.lastSyncedAt);
   const [booted, setBooted] = useState(false);
   const [bootProgress, setBootProgress] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [companyProfileOpen, setCompanyProfileOpen] = useState(false);
+  const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
   const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
 
   const metrics = useMemo(() => calculateMetrics(snapshot), [snapshot]);
+
+  useEffect(() => {
+    document.title = `${pageTitleByView[viewMode]} | CTX BankPro | ASP Private Capital`;
+  }, [viewMode]);
 
   const syncBackend = useCallback(async () => {
     try {
@@ -566,17 +655,22 @@ export function KnowledgeApp() {
   }, [syncBackend]);
 
   useEffect(() => {
-    let frame = 0;
-    const start = performance.now();
+    const start = Date.now();
     const duration = 900;
-    const tick = (time: number) => {
-      const progress = Math.min(1, (time - start) / duration);
+    const tick = () => {
+      const progress = Math.min(1, (Date.now() - start) / duration);
       setBootProgress(progress);
-      if (progress < 1) frame = requestAnimationFrame(tick);
-      else setBooted(true);
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    tick();
+    const interval = window.setInterval(tick, 50);
+    const completion = window.setTimeout(() => {
+      setBootProgress(1);
+      setBooted(true);
+    }, duration);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(completion);
+    };
   }, []);
 
   useEffect(() => {
@@ -593,59 +687,72 @@ export function KnowledgeApp() {
   return (
     <>
       <AnimatePresence>{!booted && <BootSequence progress={bootProgress} />}</AnimatePresence>
-      <div className={`app-shell ${booted ? "is-ready" : ""}`}>
-        <aside className="rail">
-          <WorldCreatorsMark />
-          <nav aria-label="Primary navigation">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <IconButton
-                  key={item.id}
-                  label={item.label}
-                  active={viewMode === item.id}
-                  onClick={() => setViewMode(item.id)}
-                >
-                  <Icon size={18} />
-                </IconButton>
-              );
-            })}
-            <a className="icon-button" href="/extension" aria-label="Extension documentation" title="Extension documentation">
-              <BookOpenText size={18} />
-            </a>
-          </nav>
-        </aside>
+      <div className={`app-shell ${booted ? "is-ready" : ""} ${sidebarOpen ? "is-sidebar-open" : ""}`}>
+        <SideNav className="rail" footer={<SideNavItem icon={<BookOpenText size={18} />} label="Documentation" onClick={() => window.location.assign("/extension")} />}>
+          <SideNavSection isHeaderHidden title="Knowledge Bank navigation">
+            {navItems.map((item) => <SideNavItem key={item.id} icon={<item.icon size={18} />} isSelected={viewMode === item.id} label={item.label} onClick={() => setViewMode(item.id)} />)}
+          </SideNavSection>
+        </SideNav>
 
         <header className="topbar">
-          <div className="product-name">
-            <span>World Creators</span>
-            <i />
-            Context Bank
+          <div className="topbar__left">
+            <div className="console-brand-mark" aria-label="CTXBANKPRO">
+              <ThemeAwareBrand width={122} height={36} />
+            </div>
+            <Button
+              className="topbar-services-trigger"
+              onClick={() => setSidebarOpen((open) => !open)}
+              size="sm"
+              variant="secondary"
+            >
+              <Menu size={16} />
+              Services
+            </Button>
           </div>
-          <button className="global-search" onClick={() => setCommandOpen(true)}>
-            <Search size={15} />
-            <span>Search Knowledge Bank</span>
-            <kbd><Command size={11} /> K</kbd>
-          </button>
-          <div className="topbar__actions">
-            <span className="backend-sync" data-state={syncState}>
-              <i />
-              {syncState === "live"
-                ? `Updated ${formatTimestamp(lastSyncedAt)}`
-                : formatSyncState(syncState)}
-            </span>
-            <DocumentUpload onComplete={syncBackend} />
+          <div className="topbar__center">
+            <AstryxButton
+              className="global-search"
+              endContent={<kbd>⌘ K</kbd>}
+              icon={<Search size={15} />}
+              label="Search..."
+              onClick={() => setCommandOpen(true)}
+              variant="ghost"
+            />
+          </div>
+          <div className="topbar__utilities">
+            <ThemePreferenceControl />
+            <IconButton label="View alerts"><Bell size={15} /></IconButton>
+            <IconButton label="Open appearance settings" onClick={() => setThemeSettingsOpen(true)}><Settings size={15} /></IconButton>
+            <span className="topbar__divider" />
+            <Token
+              className="company-profile-tag"
+              endContent={<ChevronDown size={13} />}
+              label="ASP Private Capital"
+              onClick={() => setCompanyProfileOpen(true)}
+              size="sm"
+            />
           </div>
         </header>
 
         {viewMode === "dashboard" && (
-          <DashboardView metrics={metrics} runtime={runtime} documents={documents} />
+          <DashboardView metrics={metrics} runtime={runtime} documents={documents} onComplete={syncBackend} />
         )}
         {viewMode === "network" && <NetworkView />}
-        {viewMode === "sources" && <SourcesView documents={documents} />}
+        {viewMode === "sources" && <SourcesView documents={documents} onComplete={syncBackend} />}
+        {viewMode === "agents" && <AgentsView />}
 
         <NodeInspector />
         <CommandPalette />
+        <CompanyProfileOverlay isOpen={companyProfileOpen} onOpenChange={setCompanyProfileOpen} />
+        <Dialog isOpen={themeSettingsOpen} onOpenChange={setThemeSettingsOpen} purpose="info" width={400}>
+          <DialogHeader
+            onOpenChange={setThemeSettingsOpen}
+            startContent={<Settings size={18} />}
+            subtitle="Workspace appearance"
+            title="Display settings"
+          />
+          <ThemePreferenceControl />
+        </Dialog>
       </div>
     </>
   );

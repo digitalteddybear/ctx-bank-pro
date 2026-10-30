@@ -24,34 +24,61 @@ interface CanvasSize {
   height: number;
 }
 
+interface StoredMapView {
+  direction: Direction;
+  zoom: number;
+  offsetX?: number;
+  offsetY?: number;
+}
+
 const safeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, "-");
-const clampZoom = (value: number) => Math.min(2.4, Math.max(0.2, value));
+const clampZoom = (value: number) => Math.min(5, Math.max(0.025, value));
+const easeOut = (value: number) => 1 - (1 - value) ** 3;
+const mapViewStorageKey = "ctxbankpro:knowledge-map-view:v3";
+const mapMotionDuration = 260;
+
+function readStoredMapView(): StoredMapView | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem(mapViewStorageKey) ?? "null") as Partial<StoredMapView> | null;
+    if (!value || (value.direction !== "horizontal" && value.direction !== "vertical")) return null;
+    if (typeof value.zoom !== "number") return null;
+    return value as StoredMapView;
+  } catch {
+    return null;
+  }
+}
 
 export function KnowledgeGraph2D() {
+  const [initialStoredView] = useState<StoredMapView | null>(readStoredMapView);
+  const storedViewRef = useRef<StoredMapView | null>(initialStoredView);
   const viewportRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const originRef = useRef<SVGGElement>(null);
   const nodeElementsRef = useRef(new Map<string, SVGGElement>());
   const edgeElementsRef = useRef(new Map<string, SVGPathElement>());
   const canvasSizeRef = useRef<CanvasSize>({ width: 1200, height: 760 });
-  const zoomRef = useRef(1);
-  const targetZoomRef = useRef(1);
+  const zoomRef = useRef(initialStoredView?.zoom ?? 1);
+  const targetZoomRef = useRef(initialStoredView?.zoom ?? 1);
   const zoomAnimationRef = useRef<number | null>(null);
   const zoomAnchorRef = useRef({ x: 0, y: 0, graphX: 0, graphY: 0 });
   const pathStartRef = useRef<string | null>(null);
   const suppressCanvasClickRef = useRef(false);
-  const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const panRef = useRef<{ x: number; y: number; offsetX: number; offsetY: number } | null>(null);
+  const panOffsetRef = useRef({ x: 0, y: 0 });
   const snapshot = useGraphStore((state) => state.snapshot);
   const selectedNodeId = useGraphStore((state) => state.selectedNodeId);
   const highlightedNodeIds = useGraphStore((state) => state.highlightedNodeIds);
   const selectNode = useGraphStore((state) => state.selectNode);
   const setHighlightedNodes = useGraphStore((state) => state.setHighlightedNodes);
-  const [direction, setDirection] = useState<Direction>("horizontal");
+  const [direction, setDirection] = useState<Direction>(initialStoredView?.direction ?? "horizontal");
   const [neighborhoodOnly, setNeighborhoodOnly] = useState(false);
   const [pathStartId, setPathStartId] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(initialStoredView?.zoom ?? 1);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 1200, height: 760 });
   const [ready, setReady] = useState(false);
+  const [viewReady, setViewReady] = useState(false);
+  const viewReadyRef = useRef(false);
   const [panning, setPanning] = useState(false);
 
   const visibleNodeIds = useMemo(() => {
@@ -76,6 +103,68 @@ export function KnowledgeGraph2D() {
     zoomRef.current = zoom;
   }, [zoom]);
 
+  const persistMapView = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewReadyRef.current || !viewport || typeof window === "undefined") return;
+    const view: StoredMapView = {
+      direction,
+      zoom: zoomRef.current,
+      offsetX: panOffsetRef.current.x,
+      offsetY: panOffsetRef.current.y,
+    };
+    storedViewRef.current = view;
+    window.sessionStorage.setItem(mapViewStorageKey, JSON.stringify(view));
+  }, [direction]);
+
+  useEffect(() => {
+    persistMapView();
+  }, [direction, persistMapView]);
+
+  const stopZoomAnimation = useCallback(() => {
+    if (zoomAnimationRef.current !== null) {
+      cancelAnimationFrame(zoomAnimationRef.current);
+      zoomAnimationRef.current = null;
+    }
+  }, []);
+
+  const animateMapView = useCallback((target: {
+    zoom: number;
+    offsetX: number;
+    offsetY: number;
+  }) => {
+    const viewport = viewportRef.current;
+    const svg = svgRef.current;
+    if (!viewport || !svg) return;
+    stopZoomAnimation();
+    const startZoom = zoomRef.current;
+    const startOffset = { ...panOffsetRef.current };
+    const size = canvasSizeRef.current;
+    const startedAt = performance.now();
+
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / mapMotionDuration);
+      const eased = easeOut(progress);
+      const currentZoom = startZoom + (target.zoom - startZoom) * eased;
+      const offsetX = startOffset.x + (target.offsetX - startOffset.x) * eased;
+      const offsetY = startOffset.y + (target.offsetY - startOffset.y) * eased;
+      zoomRef.current = currentZoom;
+      panOffsetRef.current = { x: offsetX, y: offsetY };
+      svg.setAttribute("width", String(size.width * currentZoom));
+      svg.setAttribute("height", String(size.height * currentZoom));
+      svg.style.setProperty("transform", `translate(${offsetX}px, ${offsetY}px)`);
+      setZoom(currentZoom);
+
+      if (progress < 1) {
+        zoomAnimationRef.current = requestAnimationFrame(step);
+      } else {
+        zoomAnimationRef.current = null;
+        persistMapView();
+      }
+    };
+
+    zoomAnimationRef.current = requestAnimationFrame(step);
+  }, [persistMapView, stopZoomAnimation]);
+
   const animateZoomAtPoint = useCallback((requestedZoom: number, x: number, y: number) => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -84,10 +173,10 @@ export function KnowledgeGraph2D() {
     zoomAnchorRef.current = {
       x,
       y,
-      graphX: (viewport.scrollLeft + x) / currentZoom,
-      graphY: (viewport.scrollTop + y) / currentZoom,
+      graphX: (x - panOffsetRef.current.x) / currentZoom,
+      graphY: (y - panOffsetRef.current.y) / currentZoom,
     };
-    if (zoomAnimationRef.current !== null) return;
+    stopZoomAnimation();
 
     const step = () => {
       const activeViewport = viewportRef.current;
@@ -101,7 +190,7 @@ export function KnowledgeGraph2D() {
       const distance = target - current;
       const nextZoom = Math.abs(distance) < 0.0005
         ? target
-        : current + distance * 0.24;
+        : current + distance * 0.2;
       const size = canvasSizeRef.current;
       const anchor = zoomAnchorRef.current;
 
@@ -109,22 +198,22 @@ export function KnowledgeGraph2D() {
       svg.setAttribute("width", String(size.width * nextZoom));
       svg.setAttribute("height", String(size.height * nextZoom));
       setZoom(nextZoom);
-      viewport.scrollTo({
-        left: Math.max(0, anchor.graphX * nextZoom - anchor.x),
-        top: Math.max(0, anchor.graphY * nextZoom - anchor.y),
-      });
-
+      const offsetX = anchor.x - anchor.graphX * nextZoom;
+      const offsetY = anchor.y - anchor.graphY * nextZoom;
+      panOffsetRef.current = { x: offsetX, y: offsetY };
+      svg.style.setProperty("transform", `translate(${offsetX}px, ${offsetY}px)`);
       if (nextZoom === target) {
         zoomAnimationRef.current = null;
+        persistMapView();
       } else {
         zoomAnimationRef.current = requestAnimationFrame(step);
       }
     };
 
     zoomAnimationRef.current = requestAnimationFrame(step);
-  }, []);
+  }, [persistMapView, stopZoomAnimation]);
 
-  const fitGraph = useCallback((size = canvasSizeRef.current, minimumZoom = 0.2) => {
+  const fitGraph = useCallback((size = canvasSizeRef.current, minimumZoom = 0.025) => {
     const viewport = viewportRef.current;
     if (!viewport || !size.width || !size.height) return;
     const nextZoom = Math.min(
@@ -137,20 +226,12 @@ export function KnowledgeGraph2D() {
         ),
       ),
     );
-    if (zoomAnimationRef.current !== null) {
-      cancelAnimationFrame(zoomAnimationRef.current);
-      zoomAnimationRef.current = null;
-    }
-    zoomRef.current = nextZoom;
-    targetZoomRef.current = nextZoom;
-    setZoom(nextZoom);
-    requestAnimationFrame(() => {
-      viewport.scrollTo({
-        left: Math.max(0, ((size.width * nextZoom) - viewport.clientWidth) / 2),
-        top: Math.max(0, ((size.height * nextZoom) - viewport.clientHeight) / 2),
-      });
+    animateMapView({
+      zoom: nextZoom,
+      offsetX: (viewport.clientWidth - size.width * nextZoom) / 2,
+      offsetY: (viewport.clientHeight - size.height * nextZoom) / 2,
     });
-  }, []);
+  }, [animateMapView]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -163,7 +244,7 @@ export function KnowledgeGraph2D() {
       if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) delta *= 16;
       if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) delta *= viewport.clientHeight;
       delta = Math.max(-100, Math.min(100, delta));
-      const factor = Math.exp(-delta * 0.0014);
+      const factor = Math.exp(-delta * 0.0045);
       animateZoomAtPoint(
         targetZoomRef.current * factor,
         event.clientX - rect.left,
@@ -188,7 +269,7 @@ export function KnowledgeGraph2D() {
       setHighlightedNodes(path?.nodes.map((node) => node.id) ?? [pathStart, nodeId]);
       setPathStartId(null);
     } else {
-      setHighlightedNodes([]);
+      setHighlightedNodes(getNeighborhood(snapshot, nodeId, 1).nodes.map((node) => node.id));
     }
     selectNode(nodeId);
   }, [selectNode, setHighlightedNodes, snapshot]);
@@ -199,13 +280,15 @@ export function KnowledgeGraph2D() {
     if (!svg || !origin) return;
     let cancelled = false;
     setReady(false);
+    setViewReady(false);
+    viewReadyRef.current = false;
     origin.replaceChildren();
     nodeElementsRef.current.clear();
     edgeElementsRef.current.clear();
 
     const render = async () => {
       const graph = new Graph(false);
-      graph.identifier = "world-creators-knowledge";
+      graph.identifier = "asp-invest-knowledge";
       graph.options = { direction };
       const renderNodes = new Map<string, Node>();
 
@@ -253,8 +336,9 @@ export function KnowledgeGraph2D() {
         edge.class = `knowledge-edge knowledge-edge-${record.type}`;
         edge.label = record.label;
         edge.activate = () => {
-          setHighlightedNodes([record.source, record.target]);
-          selectNode(record.target);
+          // Keep edge and node activation in the same focused state: the active
+          // endpoint, its immediate neighbours, and the links between them.
+          activateNode(record.target);
         };
         graph.setEdge(edge);
       }
@@ -319,7 +403,28 @@ export function KnowledgeGraph2D() {
 
       setCanvasSize({ width, height });
       setReady(true);
-      requestAnimationFrame(() => fitGraph({ width, height }, 0.48));
+      const storedView = storedViewRef.current;
+      requestAnimationFrame(() => {
+        if (storedView) {
+          zoomRef.current = clampZoom(storedView.zoom);
+          targetZoomRef.current = zoomRef.current;
+          svg.setAttribute("width", String(width * zoomRef.current));
+          svg.setAttribute("height", String(height * zoomRef.current));
+          setZoom(zoomRef.current);
+          panOffsetRef.current = {
+            x: storedView.offsetX ?? 0,
+            y: storedView.offsetY ?? 0,
+          };
+          svg.style.setProperty(
+            "transform",
+            `translate(${panOffsetRef.current.x}px, ${panOffsetRef.current.y}px)`,
+          );
+        } else {
+          fitGraph({ width, height }, 0.48);
+        }
+        setViewReady(true);
+        viewReadyRef.current = true;
+      });
     };
 
     void render();
@@ -357,22 +462,27 @@ export function KnowledgeGraph2D() {
   }, [highlightedNodeIds, records.edges, selectedNodeId]);
 
   useEffect(() => {
-    if (!ready || !selectedNodeId) return;
+    if (!ready || !viewReady || !selectedNodeId) return;
     const element = nodeElementsRef.current.get(selectedNodeId);
-    if (!element) return;
+    const viewport = viewportRef.current;
+    const svg = svgRef.current;
+    if (!element || !viewport || !svg) return;
     const nextZoom = Math.max(zoomRef.current, 0.78);
-    if (zoomAnimationRef.current !== null) {
-      cancelAnimationFrame(zoomAnimationRef.current);
-      zoomAnimationRef.current = null;
-    }
-    zoomRef.current = nextZoom;
     targetZoomRef.current = nextZoom;
-    setZoom(nextZoom);
-    requestAnimationFrame(() => {
-      element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-      element.focus({ preventScroll: true });
+    const nodeBounds = element.getBoundingClientRect();
+    const nodeCenter = svg.createSVGPoint();
+    nodeCenter.x = nodeBounds.left + nodeBounds.width / 2;
+    nodeCenter.y = nodeBounds.top + nodeBounds.height / 2;
+    const screenMatrix = svg.getScreenCTM();
+    if (!screenMatrix) return;
+    const graphPoint = nodeCenter.matrixTransform(screenMatrix.inverse());
+    animateMapView({
+      zoom: nextZoom,
+      offsetX: viewport.clientWidth / 2 - graphPoint.x * nextZoom,
+      offsetY: viewport.clientHeight / 2 - graphPoint.y * nextZoom,
     });
-  }, [ready, selectedNodeId]);
+    element.focus({ preventScroll: true });
+  }, [animateMapView, ready, viewReady, selectedNodeId]);
 
   const changeZoom = (factor: number) => {
     const viewport = viewportRef.current;
@@ -405,6 +515,8 @@ export function KnowledgeGraph2D() {
         ref={viewportRef}
         data-testid="knowledge-graph-viewport"
         data-panning={panning}
+        onMouseDown={(event) => event.preventDefault()}
+        onDragStart={(event) => event.preventDefault()}
         onClick={(event) => {
           if (suppressCanvasClickRef.current) {
             suppressCanvasClickRef.current = false;
@@ -434,8 +546,8 @@ export function KnowledgeGraph2D() {
           panRef.current = {
             x: event.clientX,
             y: event.clientY,
-            left: viewportRef.current.scrollLeft,
-            top: viewportRef.current.scrollTop,
+            offsetX: panOffsetRef.current.x,
+            offsetY: panOffsetRef.current.y,
           };
           setPanning(true);
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -444,8 +556,16 @@ export function KnowledgeGraph2D() {
           const start = panRef.current;
           const viewport = viewportRef.current;
           if (!start || !viewport) return;
-          viewport.scrollLeft = start.left - (event.clientX - start.x);
-          viewport.scrollTop = start.top - (event.clientY - start.y);
+          const deltaX = event.clientX - start.x;
+          const deltaY = event.clientY - start.y;
+          panOffsetRef.current = {
+            x: start.offsetX + deltaX,
+            y: start.offsetY + deltaY,
+          };
+          svgRef.current?.style.setProperty(
+            "transform",
+            `translate(${panOffsetRef.current.x}px, ${panOffsetRef.current.y}px)`,
+          );
         }}
         onPointerUp={(event) => {
           const start = panRef.current;
@@ -456,7 +576,19 @@ export function KnowledgeGraph2D() {
           }
           panRef.current = null;
           setPanning(false);
-          event.currentTarget.releasePointerCapture(event.pointerId);
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+          persistMapView();
+        }}
+        onPointerCancel={(event) => {
+          panRef.current = null;
+          suppressCanvasClickRef.current = true;
+          setPanning(false);
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+          persistMapView();
         }}
       >
         <svg
@@ -465,20 +597,20 @@ export function KnowledgeGraph2D() {
           data-testid="knowledge-graph-canvas"
           width={canvasSize.width * zoom}
           height={canvasSize.height * zoom}
-          aria-label="World Creators two-dimensional knowledge map"
+          aria-label="ASP Private Capital two-dimensional knowledge map"
         >
           <g ref={originRef} />
         </svg>
       </div>
 
       <div className={styles.toolbar} aria-label="Knowledge map controls">
-        <button type="button" title="Fit graph" aria-label="Fit graph" onClick={() => fitGraph()}>
+        <button type="button" title="Return to graph" aria-label="Return to graph" onClick={() => fitGraph()}>
           <LocateFixed size={15} />
         </button>
-        <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => changeZoom(0.85)}>
+        <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => changeZoom(0.78)}>
           <Minus size={15} />
         </button>
-        <button type="button" title="Zoom in" aria-label="Zoom in" onClick={() => changeZoom(1.15)}>
+        <button type="button" title="Zoom in" aria-label="Zoom in" onClick={() => changeZoom(1.28)}>
           <Plus size={15} />
         </button>
         <span className={styles.toolbarDivider} />
@@ -518,7 +650,7 @@ export function KnowledgeGraph2D() {
         <Network size={12} />
         {pathStartId
           ? "Select a destination"
-          : `${records.nodes.length} nodes · ${records.edges.length} links · ${direction}`}
+          : `${records.nodes.length} nodes · ${records.edges.length} links`}
       </div>
     </div>
   );

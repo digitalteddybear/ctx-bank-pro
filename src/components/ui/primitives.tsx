@@ -1,10 +1,27 @@
 "use client";
 
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
-import { LoaderCircle } from "lucide-react";
+import { Children, isValidElement, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from "react";
+import { Badge as AstryxBadge } from "@astryxdesign/core/Badge";
+import { Button as AstryxButton } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
+import { IconButton as AstryxIconButton } from "@astryxdesign/core/IconButton";
+import { Skeleton as AstryxSkeleton } from "@astryxdesign/core/Skeleton";
 
 export function cx(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function labelFromChildren(children: ReactNode): string {
+  return Children.toArray(children)
+    .map((child) => {
+      if (typeof child === "string" || typeof child === "number") return String(child);
+      if (isValidElement<{ children?: ReactNode }>(child) && typeof child.type === "string") {
+        return labelFromChildren(child.props.children);
+      }
+      return "";
+    })
+    .join(" ")
+    .trim() || "Action";
 }
 
 export function IconButton({
@@ -18,17 +35,7 @@ export function IconButton({
   active?: boolean;
   children: ReactNode;
 }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      className={cx("icon-button", active && "is-active", className)}
-      {...props}
-    >
-      {children}
-    </button>
-  );
+  return <AstryxIconButton {...props} className={cx("icon-button", active && "is-active", className)} icon={children} label={label} />;
 }
 
 export function Button({
@@ -44,15 +51,17 @@ export function Button({
   loading?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      className={cx("button", `button--${variant}`, `button--${size}`, className)}
-      disabled={loading || props.disabled}
+    <AstryxButton
       {...props}
+      className={cx("button", `button--${variant}`, `button--${size}`, className)}
+      isDisabled={loading || props.disabled}
+      isLoading={loading}
+      label={labelFromChildren(children)}
+      size={size}
+      variant={variant === "danger" ? "destructive" : variant}
     >
-      {loading && <LoaderCircle size={15} className="spin" />}
-      {children}
-    </button>
+      <span className="button__content">{children}</span>
+    </AstryxButton>
   );
 }
 
@@ -65,7 +74,8 @@ export function Badge({
   children: ReactNode;
   className?: string;
 }) {
-  return <span className={cx("badge", `badge--${tone}`, className)}>{children}</span>;
+  const variant = tone === "danger" ? "error" : tone === "accent" ? "blue" : tone;
+  return <AstryxBadge className={cx("badge", `badge--${tone}`, className)} label={children} variant={variant} />;
 }
 
 export function Panel({
@@ -73,13 +83,9 @@ export function Panel({
   children,
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={cx("panel", className)} {...props}>
-      {children}
-    </div>
-  );
+  return <Card {...props} className={cx("panel", className)} padding={4}>{children}</Card>;
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cx("skeleton", className)} aria-hidden="true" />;
+  return <AstryxSkeleton className={cx("skeleton", className)} />;
 }

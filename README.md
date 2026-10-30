@@ -1,8 +1,22 @@
-# World Creators Knowledge Network
+# ASP Invest — CTX Bank application
 
-A dynamic, provenance-aware knowledge graph that lets agents traverse and
-maintain the World Creators knowledge base without repeatedly scanning the
-entire filebase.
+A provenance-aware application displaying the Python pipeline's 949 retained
+lead dossiers from ASP Invest's 1,000-contact validation sample. The remaining
+51 contacts stay in the separate quarantine archive.
+
+The graph reads `../../RAG/corpus/chunks/normalized-contacts`
+relative to this application, or `CTX_LEAD_CORPUS_PATH` when configured. It
+checks files on refresh and preserves the original Markdown as provenance.
+The existing inspector renders readable dossier text beginning with a prospect
+description. Pipeline inclusion and readiness flags do not establish confirmed
+mailbox delivery, permission for outreach, or investor qualification.
+
+ASP runtime writes and uploads live under `data/asp-invest/`. The old World
+Creators data remains in its original location for recovery and is not loaded
+by default. The historical seed and ingestion script are legacy reference code.
+
+See [the enterprise task list](docs/asp-invest-enterprise-plan.md) for dedicated
+application domains, file synchronization improvements and orchestrator design.
 
 ## Product surfaces
 
@@ -59,8 +73,9 @@ Optional runtime settings:
 
 ```bash
 GRAPH_PERSISTENCE=file
-GRAPH_RUNTIME_PATH=/absolute/path/to/runtime-graph.json
-INGESTION_ROOT=/absolute/path/to/persistent/inbox
+CTX_LEAD_CORPUS_PATH=/absolute/path/to/normalized-contacts
+GRAPH_RUNTIME_PATH=/absolute/path/to/asp-invest/runtime-graph.json
+INGESTION_ROOT=/absolute/path/to/asp-invest/inbox
 AGENT_WRITE_TOKEN=replace-with-a-long-random-secret
 ```
 
