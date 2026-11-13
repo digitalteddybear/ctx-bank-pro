@@ -15,7 +15,9 @@ export async function proxy(request: NextRequest) {
       return NextResponse.next();
     }
     const requestedView=request.nextUrl.searchParams.get("view");
-    if(path!=="/"||(requestedView&&requestedView!=="dashboard"))return NextResponse.redirect(new URL("/?view=dashboard",request.url));
+    if(path!=="/")return NextResponse.redirect(new URL("/?view=dashboard",request.url));
+    if(requestedView==="agents"||requestedView==="network")return NextResponse.next();
+    if(requestedView&&requestedView!=="dashboard")return NextResponse.redirect(new URL("/?view=dashboard",request.url));
     return NextResponse.next();
   }
   if(!hasAdminProfile()){

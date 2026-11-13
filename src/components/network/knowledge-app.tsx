@@ -704,6 +704,7 @@ export function KnowledgeApp() {
   const toggleSidebar = useGraphStore((state) => state.toggleSidebar);
   const [companyProfileOpen, setCompanyProfileOpen] = useState(false);
   const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
+  const [restrictedSection, setRestrictedSection] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [profileRole, setProfileRole] = useState<"administrator" | "guest">("guest");
@@ -728,6 +729,9 @@ export function KnowledgeApp() {
 
   useEffect(() => {
     if (profileReady && profileRole === "guest" && viewMode !== "dashboard") {
+      if (viewMode === "agents" || viewMode === "network") {
+        setRestrictedSection(viewMode === "agents" ? "Agents" : "Knowledge Bank");
+      }
       setSelectedChatId(null);
       setViewMode("dashboard");
       window.history.replaceState({}, "", "/?view=dashboard");
@@ -942,6 +946,12 @@ export function KnowledgeApp() {
             title="Display settings"
           />
           <ThemePreferenceControl />
+        </Dialog>
+        <Dialog isOpen={restrictedSection !== null} onOpenChange={isOpen => { if (!isOpen) setRestrictedSection(null); }} purpose="info" width={440}>
+          <DialogHeader title={restrictedSection ?? "Access"} onOpenChange={isOpen => { if (!isOpen) setRestrictedSection(null); }} />
+          <div style={{ padding: "16px" }}>
+            <Text>Administrative privileges required to access this section of CTX Bank</Text>
+          </div>
         </Dialog>
       </div>
     </>

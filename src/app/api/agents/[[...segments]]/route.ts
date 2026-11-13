@@ -12,12 +12,13 @@ import { getAgentProfiles } from "@/lib/server/outreach/profiles";
 import { getModelRegistry } from "@/lib/server/outreach/training/registry";
 import { getOrchestrator } from "@/lib/server/outreach/orchestrator/orchestrator";
 import { getMessageBus } from "@/lib/server/outreach/orchestrator/bus";
+import { deploymentSecret } from "@/lib/server/operator-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ segments?: string[] }> };
 function authorised(request: NextRequest) {
-  const expected = process.env.CTX_OUTREACH_OPERATOR_TOKEN;
+  const expected = deploymentSecret("CTX_OUTREACH_OPERATOR_TOKEN");
   // The CTX dashboard has no separate user-auth service yet. Permit only
   // same-origin browser calls when no operator token is configured; external
   // callers remain rejected. A configured token always takes precedence.

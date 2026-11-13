@@ -18,7 +18,6 @@ import {
   Users,
   MessageSquareText,
   Trash2,
-  LogOut,
 } from "lucide-react";
 import { SideNav, SideNavItem, SideNavSection, SideNavHeading } from "@astryxdesign/core/SideNav";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
@@ -355,10 +354,6 @@ export function ShellSideNavigation({
         )}
       </SideNavSection>
       </>}
-      <Divider />
-      <AstryxButton label="Sign out" variant="ghost" size="sm" icon={<LogOut size={15}/>} onClick={() => {
-        void fetch("/api/session", {method:"DELETE"}).finally(() => window.location.assign("/login"));
-      }} />
     </SideNav>
     <Dialog isOpen={restrictedSection !== null} onOpenChange={isOpen => {if (!isOpen) setRestrictedSection(null);}} purpose="info" width={440}>
       <DialogHeader title={restrictedSection ?? "Access"} onOpenChange={isOpen => {if (!isOpen) setRestrictedSection(null);}} />
