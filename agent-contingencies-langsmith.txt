@@ -1,0 +1,70 @@
+CTX AGENT CONTINGENCIES — 2026-11-02
+Purpose: portable evaluation handoff. LangSmith evaluations have NOT been run by this audit. Use synthetic inputs; never upload keys, real dossiers, or private correspondence.
+
+Trace fields: finding_id, synthetic_run_id, agent, stage, revision, draft_hash, source_fingerprint, tool_name, attempt, lease_owner, outcome, error_class, elapsed_ms. Redact email/name/dossier/body; use hashes and synthetic examples.
+
+AUD-001 / AUD-013 — Delivery ambiguity
+Trigger: SMTP accepts a synthetic message, worker dies before persistence.
+Expected: reconciliation hold; no second send; never report confirmed inbox delivery.
+Observed: engine currently records simulation; helper has no durable attempt reconciliation.
+Evaluation: inject failure before send, after acceptance, and before commit; assert at most one automatic send attempt after ambiguity and explicit uncertainty.
+Status: confirmed implementation gap, not live-tested.
+
+AUD-003 / AUD-014 — Cohort and permission forgery
+Input: {email:"outsider@example.test",phase1Validated:true,phase1LeadId:"lead-not-in-corpus"}.
+Expected: canonical ID/email mismatch blocks before inference or SMTP. Validated dossier with permission unknown must hold.
+Observed: helper accepts supplied flags or ID prefixes; Phase 1 loader correctly states permission unknown.
+Status: code-confirmed; evaluate production boundary after remediation.
+
+AUD-005 / AUD-006 — Restart and duplicate ingestion
+Trigger: two workers claim one job; mailbox restarts with same UID or new UIDVALIDITY.
+Expected: single claim, durable message receipt, all unprocessed replies ingested; no repeated generated response.
+Trace: mailbox fingerprint, UIDVALIDITY, UID, message hash, claim owner.
+Status: job lease tests pass; mailbox checkpoints absent.
+
+AUD-007 — Trace privacy
+Trigger: tracing enabled while context contains synthetic sentinel SECRET_DOSSIER and PRIVATE_REPLY.
+Expected: neither sentinel appears in exported trace inputs/outputs or errors; structural metadata remains useful.
+Observed: traceable wraps full context. Preserve current integration but add explicit redaction.
+Status: static finding; export not exercised.
+
+AUD-009 — Provider unavailable / malformed output
+Inputs: timeout, 401, invalid JSON, valid JSON with unknown action, prompt asking to ignore compliance.
+Expected: bounded retries, structured schema rejection, no fixture fallback, no mail, visible hold.
+Baseline: existing 24 outreach tests pass, including schema rejection and bounded retries.
+Add: shared OAuth transport and tool-free agent response schema checks.
+
+CONT-001 — Suppression/takeover during generation
+Trigger: opt-out or human takeover after draft generation starts and before send.
+Expected: invalidate revision, cancel pending jobs, suppress email where appropriate; no stale completion dispatch.
+Baseline: opt-out-during-inference test passes. Extend to SMTP claim boundary.
+
+CONT-002 — Approval and source changes
+Trigger: draft or source fingerprint changes after approval.
+Expected: exact-version approval invalidated; return to review; no send.
+Baseline: existing approval/source regression tests pass.
+
+CONT-003 — Booking replay / misattribution
+Trigger: repeated BOOKING_CREATED; altered signature; unrelated email/HubSpot ID pair.
+Expected: reject invalid signature/match, dedupe valid event, cancel cold follow-ups, one briefing note, zero meeting creations.
+Status: integration absent; add deterministic fixtures.
+
+CONT-004 — Pacing and priority
+Trigger: restart near UK midnight/DST/weekend; quota exhausted; reply pending while new starts queued.
+Expected: London business-hour gate, atomic 250 total cap, ramp 25/85/160/160/170/170/179, replies first, no restart burst.
+Status: production scheduler not implemented yet.
+
+CONT-005 — Classification and disclaimer gates
+Synthetic inputs: interest in each approved sector, explicit booking request, unsubscribe plus interest, legal threat, ambiguous response.
+Expected: opt-out/complaint/legal escalation priority preserved; interest never establishes eligibility; generated response must pass exact-draft compliance gate.
+Status: existing intent schemas present; sector-specific expansion pending.
+
+Remediation checkpoint:
+AUD-002 strict IMAP TLS enabled; real SMTP and IMAP handshake both succeeded without sending mail.
+AUD-003 SMTP transport now checks canonical email/lead ID; enrollment checks pending.
+CONT-004 scheduler primitives now pass deterministic ramp/window/priority/cap/crash tests; integration with real sending is still pending. Do not treat these as end-to-end delivery results.
+
+CONT-006 — Prepared-batch pause/resume
+Trigger: pause twice, reload registry, resume held batch without permission records.
+Expected: persisted paused state, idempotent repeat, resume returns held, zero inference/email jobs.
+Verification: campaign QA passes. Worker-enforced pause during real SMTP remains pending production integration.

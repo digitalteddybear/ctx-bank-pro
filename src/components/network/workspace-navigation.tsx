@@ -52,8 +52,8 @@ export function WorkspaceNavigation({ active, extended, onNavigate, onCloseConte
       <SideNavItem icon={<BookOpenText size={16} />} label="Documentation" onClick={() => window.location.assign("/extension")} />
       <HStack className="workspace-profile" gap={2} padding={3} vAlign="center"><Avatar name="Workspace user" size="sm" /><VStack gap={0}><Text>Workspace user</Text><Text type="supporting" color="secondary">{syncState === "live" ? "Active · Connected" : "Connecting"}</Text></VStack></HStack>
     </VStack>}>
-      <SideNavSection title="Overview" isHeaderHidden>
-        <SideNavItem icon={<Home size={16} />} label="Home Dashboard" onClick={() => setViewMode("dashboard")} />
+      <SideNavSection title="Mission Control" isHeaderHidden>
+        <SideNavItem icon={<Home size={16} />} label="Mission Control" onClick={() => setViewMode("dashboard")} />
         <SideNavItem icon={<Network size={16} />} label="Knowledge Bank" onClick={() => setViewMode("network")} />
         <SideNavItem icon={<Database size={16} />} label="Documents & Sources" onClick={() => setViewMode("sources")} />
       </SideNavSection>

@@ -66,7 +66,7 @@ const linked = await request("/api/graph", {
   body: JSON.stringify({
     kind: "link",
     data: {
-      source: "world-creators",
+      source: "asp-invest",
       target: created.id,
       type: "related_to",
       verified: false,

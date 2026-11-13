@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
@@ -18,6 +19,7 @@ import {
   Home,
   Menu,
   Network,
+  PanelLeftOpen,
   Search,
   Server,
   Settings,
@@ -27,7 +29,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { ClickableCard } from "@astryxdesign/core/ClickableCard";
-import { Heading } from "@astryxdesign/core/Text";
+import { Heading, Text } from "@astryxdesign/core/Text";
 import { Button as AstryxButton } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { SideNav, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
@@ -40,7 +42,7 @@ import { NeuralGraph } from "./neural-graph";
 import { NodeInspector } from "./node-inspector";
 import { calculateMetrics, getActiveGraph } from "@/lib/graph/engine";
 import { nodeTypeColors, nodeTypeLabels } from "@/lib/graph/palette";
-import { useGraphStore } from "@/lib/graph/store";
+import { useGraphStore, type ViewMode } from "@/lib/graph/store";
 import type { GraphMetrics, GraphSnapshot, NodeType } from "@/lib/graph/types";
 import { Badge, Button, IconButton, Panel } from "@/components/ui/primitives";
 import { ThemeAwareBrand } from "@/components/ui/theme-aware-brand";
@@ -51,13 +53,23 @@ import { Grid } from "@/components/dither-kit/grid";
 import { Tooltip } from "@/components/dither-kit/tooltip";
 import { XAxis } from "@/components/dither-kit/x-axis";
 import { YAxis } from "@/components/dither-kit/y-axis";
-import { AgentsView } from "./agents-view";
+import { AppShell } from "@astryxdesign/core/AppShell";
+const ArchitectureView=dynamic(()=>import("@/components/templates/architecture/architecture-view").then(module=>module.ArchitectureView));
+const AgentsView=dynamic(()=>import("./agents-view").then(module=>module.AgentsView));
+import { ShellSideNavigation } from "./shell-side-navigation";
+import { MissionControlView } from "./mission-control-view";
+import { CatalogDashboardView } from "./catalog-dashboard-view";
+import { DashboardAlertRailView } from "./dashboard-alert-rail-view";
+const AISettingsView=dynamic(()=>import("./ai-settings-view").then(module=>module.AISettingsView));
+const AIChatConversationView=dynamic(()=>import("@/components/templates/ai-chat/ai-chat-conversation-view").then(module=>module.AIChatConversationView));
+import { useAIChatStore } from "@/lib/ai-chat-store";
 
 const navItems = [
   { id: "dashboard", label: "Home Dashboard", icon: Home },
   { id: "network", label: "Knowledge Bank", icon: Network },
   { id: "sources", label: "Documents & Sources", icon: Database },
   { id: "agents", label: "Agents", icon: Bot },
+  { id: "architecture", label: "Architecture", icon: GitBranch },
 ] as const;
 
 const pageTitleByView = {
@@ -65,6 +77,10 @@ const pageTitleByView = {
   network: "Knowledge Bank",
   sources: "Documents & Sources",
   agents: "Agents",
+  architecture: "Architecture",
+  catalog: "System Catalog",
+  "ai-settings": "AI Settings",
+  "ai-chat": "Chat",
 } as const;
 
 const documentProcessingChartConfig = {
@@ -228,7 +244,8 @@ function DashboardView({
 
   return (
     <motion.main
-      className="workspace dashboard"
+      className="dashboard"
+      style={{ padding: 0, minHeight: "auto", width: "100%" }}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
@@ -272,11 +289,12 @@ function DashboardView({
         <Panel className="network-preview">
           <div className="panel-heading panel-heading--overlay">
             <div>
-              <h2>Knowledge Bank</h2>
+              <Heading level={2}>Knowledge Bank</Heading>
+              <Text color="secondary" type="supporting">Active neural graph traversal and concept clusters.</Text>
             </div>
             <div className="panel-heading__meta">
               <Button size="sm" variant="secondary" onClick={() => setViewMode("network")}>
-                <Network size={15} />
+                <Network size={14} />
                 Open Knowledge Bank
               </Button>
             </div>
@@ -292,12 +310,13 @@ function DashboardView({
           <Panel className="runtime-panel">
             <div className="panel-heading">
               <div>
-                <h2 className="backend-status-title">
-                  Backend status
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Heading level={2}>Backend status</Heading>
                   <span className="backend-live-indicator">Live<i /></span>
-                </h2>
+                </div>
+                <Text color="secondary" type="supporting">Telemetry synchronization and persistence mode.</Text>
               </div>
-              <Server size={17} />
+              <Server size={16} style={{ color: "var(--foreground-muted)" }} />
             </div>
             <dl className="runtime-facts">
               <div>
@@ -322,9 +341,10 @@ function DashboardView({
           <Panel className="activity-panel activity-panel--agent">
             <div className="panel-heading">
               <div>
-                <h2>Graph change history</h2>
+                <Heading level={2}>Graph change history</Heading>
+                <Text color="secondary" type="supporting">Recent mutations by agents and operators.</Text>
               </div>
-              <Activity size={17} />
+              <Activity size={16} style={{ color: "var(--foreground-muted)" }} />
             </div>
             <div className="activity-list">
               {snapshot.activities.slice(0, 5).map((item) => (
@@ -353,9 +373,10 @@ function DashboardView({
         <Panel className="knowledge-distribution">
           <div className="panel-heading">
             <div>
-              <h2>Active nodes</h2>
+              <Heading level={2}>Active nodes</Heading>
+              <Text color="secondary" type="supporting">Distribution across entity types.</Text>
             </div>
-            <Boxes size={17} />
+            <Boxes size={16} style={{ color: "var(--foreground-muted)" }} />
           </div>
           <div className="distribution-list">
             {Object.entries(
@@ -383,7 +404,8 @@ function DashboardView({
         <Panel className="ingestion-panel">
           <div className="panel-heading">
             <div>
-              <h2>Document processing</h2>
+              <Heading level={2}>Document processing</Heading>
+              <Text color="secondary" type="supporting">Extraction queue and chunk ingestion status.</Text>
             </div>
             <div className="panel-heading__meta">
               <DocumentUpload onComplete={onComplete} />
@@ -484,17 +506,51 @@ function SourcesView({ documents, onComplete }: { documents: DocumentSummary[]; 
       className="workspace sources-view"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "28px",
+        padding: "36px 40px 60px 40px",
+        maxWidth: "1500px",
+        margin: "0 auto",
+        width: "100%",
+        boxSizing: "border-box",
+      }}
     >
-      <div className="sources-toolbar">
-        <DocumentUpload onComplete={onComplete} />
-      </div>
+      {/* Top Header & Actions matching Agents North Star */}
+      <section
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          borderBottom: "1px solid var(--border)",
+          paddingBottom: "18px",
+        }}
+      >
+        <div>
+          <Heading level={1} id="sources-title">
+            Documents & Sources
+          </Heading>
+          <Text color="secondary" type="body">
+            Raw ingest artifacts, extracted knowledge claims, and source authority status.
+          </Text>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <DocumentUpload onComplete={onComplete} />
+        </div>
+      </section>
+
       {documents.length > 0 ? (
-        <Panel className="document-inbox">
+        <Panel className="document-inbox" style={{ width: "100%" }}>
           <div className="panel-heading">
             <div>
-              <h2>Document processing queue</h2>
+              <Heading level={2}>Document processing queue</Heading>
+              <Text color="secondary" type="supporting">
+                Ingestion queue and agent extraction progress.
+              </Text>
             </div>
-            <FileClock size={17} />
+            <FileClock size={16} style={{ color: "var(--foreground-muted)" }} />
           </div>
           <div className="document-inbox__list">
             {documents.map((document) => (
@@ -545,7 +601,16 @@ function SourcesView({ documents, onComplete }: { documents: DocumentSummary[]; 
       )}
 
       {sourceNodes.length > 0 ? (
-        <Panel className="source-table">
+        <Panel className="source-table" style={{ width: "100%" }}>
+          <div className="panel-heading" style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+            <div>
+              <Heading level={2}>Source Nodes</Heading>
+              <Text color="secondary" type="supporting">
+                Active verified knowledge sources linked in ASP Private Capital.
+              </Text>
+            </div>
+            <Database size={16} style={{ color: "var(--foreground-muted)" }} />
+          </div>
           <div className="source-table__head">
             <span>Source node</span>
             <span>Authority level</span>
@@ -602,12 +667,39 @@ export function KnowledgeApp() {
   const snapshot = useGraphStore((state) => state.snapshot);
   const viewMode = useGraphStore((state) => state.viewMode);
   const setViewMode = useGraphStore((state) => state.setViewMode);
+  const selectedChatId = useGraphStore((state) => state.selectedChatId);
+  const setSelectedChatId = useGraphStore((state) => state.setSelectedChatId);
+  const hydrateChats = useAIChatStore((state) => state.hydrate);
+  useEffect(() => {
+    hydrateChats();
+    const refreshChats = () => { void useAIChatStore.getState().refresh(); };
+    window.addEventListener("ctx:backend-updated", refreshChats);
+    const onPopState = () => {
+      const url = new URL(window.location.href);
+      const requested = url.searchParams.get("view");
+      if (requested && ["dashboard", "network", "sources", "agents", "architecture", "catalog", "ai-settings", "ai-chat"].includes(requested)) setViewMode(requested as ViewMode);
+      setSelectedChatId(url.searchParams.get("chat"));
+    };
+    window.addEventListener("popstate", onPopState);
+    const url = new URL(window.location.href);
+    const chatId = url.searchParams.get("chat");
+    if (url.searchParams.get("view") === "ai-chat" && chatId) setSelectedChatId(chatId);
+    const requested = new URLSearchParams(window.location.search).get("view");
+    if (
+      requested &&
+      ["dashboard", "network", "sources", "agents", "architecture", "catalog", "ai-settings", "ai-chat"].includes(requested)
+    ) {
+      setViewMode(requested as ViewMode);
+    }
+    return () => { window.removeEventListener("popstate", onPopState); window.removeEventListener("ctx:backend-updated", refreshChats); };
+  }, [hydrateChats, setSelectedChatId, setViewMode]);
   const setCommandOpen = useGraphStore((state) => state.setCommandOpen);
   const setSnapshot = useGraphStore((state) => state.setSnapshot);
   const setSyncState = useGraphStore((state) => state.setSyncState);
   const [booted, setBooted] = useState(false);
   const [bootProgress, setBootProgress] = useState(0);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sidebarOpen = useGraphStore((state) => state.sidebarOpen);
+  const toggleSidebar = useGraphStore((state) => state.toggleSidebar);
   const [companyProfileOpen, setCompanyProfileOpen] = useState(false);
   const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
   const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
@@ -637,6 +729,7 @@ export function KnowledgeApp() {
       setSnapshot(graph);
       setRuntime(status);
       setDocuments(ingestionDocuments);
+      window.dispatchEvent(new Event("ctx:backend-updated"));
     } catch {
       setSyncState("error");
     }
@@ -647,10 +740,12 @@ export function KnowledgeApp() {
     const interval = window.setInterval(() => void syncBackend(), 4_000);
     const onFocus = () => void syncBackend();
     window.addEventListener("focus", onFocus);
+    window.addEventListener("ctx:backend-sync", onFocus);
     return () => {
       window.clearTimeout(initialSync);
       window.clearInterval(interval);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("ctx:backend-sync", onFocus);
     };
   }, [syncBackend]);
 
@@ -679,67 +774,116 @@ export function KnowledgeApp() {
         event.preventDefault();
         setCommandOpen(true);
       }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        toggleSidebar();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [setCommandOpen]);
+  }, [setCommandOpen, toggleSidebar]);
 
   return (
     <>
       <AnimatePresence>{!booted && <BootSequence progress={bootProgress} />}</AnimatePresence>
-      <div className={`app-shell ${booted ? "is-ready" : ""} ${sidebarOpen ? "is-sidebar-open" : ""}`}>
-        <SideNav className="rail" footer={<SideNavItem icon={<BookOpenText size={18} />} label="Documentation" onClick={() => window.location.assign("/extension")} />}>
-          <SideNavSection isHeaderHidden title="Knowledge Bank navigation">
-            {navItems.map((item) => <SideNavItem key={item.id} icon={<item.icon size={18} />} isSelected={viewMode === item.id} label={item.label} onClick={() => setViewMode(item.id)} />)}
-          </SideNavSection>
-        </SideNav>
-
-        <header className="topbar">
-          <div className="topbar__left">
-            <div className="console-brand-mark" aria-label="CTXBANKPRO">
-              <ThemeAwareBrand width={122} height={36} />
-            </div>
-            <Button
-              className="topbar-services-trigger"
-              onClick={() => setSidebarOpen((open) => !open)}
-              size="sm"
-              variant="secondary"
-            >
-              <Menu size={16} />
-              Services
-            </Button>
-          </div>
-          <div className="topbar__center">
-            <AstryxButton
-              className="global-search"
-              endContent={<kbd>⌘ K</kbd>}
-              icon={<Search size={15} />}
-              label="Search..."
-              onClick={() => setCommandOpen(true)}
-              variant="ghost"
+      <div className={`app-shell ${booted ? "is-ready" : ""}`} style={{ height: "100vh", overflow: "hidden" }}>
+        <AppShell
+          variant="wash"
+          contentPadding={0}
+          height="fill"
+          sideNav={
+            <ShellSideNavigation
+              onOpenCompanyProfile={() => setCompanyProfileOpen(true)}
+              onOpenThemeSettings={() => setThemeSettingsOpen(true)}
             />
+          }
+        >
+          <div
+            className="main-scroll-container"
+            style={{
+              height: "100%",
+              width: "100%",
+              overflowY: "auto",
+              position: "relative",
+              backgroundColor: "var(--background)",
+            }}
+          >
+            {!sidebarOpen && (
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="sidebar-toggle-trigger"
+                aria-label="Expand navigation (⌘B)"
+                title="Expand navigation (⌘B)"
+                style={{
+                  position: "fixed",
+                  top: "16px",
+                  left: "16px",
+                  zIndex: 40,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  background: "var(--card)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  transition: "all 150ms ease",
+                }}
+              >
+                <PanelLeftOpen size={16} />
+                <span>Navigation</span>
+                <kbd style={{ fontSize: "10px", opacity: 0.6, background: "var(--secondary)", padding: "2px 5px", borderRadius: "4px" }}>⌘B</kbd>
+              </button>
+            )}
+            {viewMode === "ai-chat" && <AIChatConversationView conversationId={selectedChatId} onMissionControl={() => { setSelectedChatId(null); setViewMode("dashboard"); window.history.pushState({}, "", "/?view=dashboard"); }} />}
+            {viewMode === "dashboard" && (
+              <div
+                className="dashboard-workspace-wrap"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "28px",
+                  padding: "36px 40px 60px 40px",
+                  maxWidth: "1500px",
+                  margin: "0 auto",
+                  width: "100%",
+                  boxSizing: "border-box",
+                }}
+              >
+                <MissionControlView metrics={metrics} runtime={runtime} documents={documents} onComplete={syncBackend} />
+                <DashboardAlertRailView onComplete={syncBackend} />
+                <DashboardView metrics={metrics} runtime={runtime} documents={documents} onComplete={syncBackend} />
+              </div>
+            )}
+            {viewMode === "network" && <NetworkView />}
+            {viewMode === "sources" && <SourcesView documents={documents} onComplete={syncBackend} />}
+            {viewMode === "agents" && <AgentsView />}
+            {viewMode === "architecture" && (
+              <div
+                className="architecture-workspace-wrap"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "28px",
+                  padding: "36px 40px 60px 40px",
+                  maxWidth: "1500px",
+                  margin: "0 auto",
+                  width: "100%",
+                  boxSizing: "border-box",
+                }}
+              >
+                <ArchitectureView />
+              </div>
+            )}
+            {viewMode === "catalog" && <CatalogDashboardView />}
+            {viewMode === "ai-settings" && <div className="ai-settings-workspace-wrap"><AISettingsView /></div>}
           </div>
-          <div className="topbar__utilities">
-            <ThemePreferenceControl />
-            <IconButton label="View alerts"><Bell size={15} /></IconButton>
-            <IconButton label="Open appearance settings" onClick={() => setThemeSettingsOpen(true)}><Settings size={15} /></IconButton>
-            <span className="topbar__divider" />
-            <Token
-              className="company-profile-tag"
-              endContent={<ChevronDown size={13} />}
-              label="ASP Private Capital"
-              onClick={() => setCompanyProfileOpen(true)}
-              size="sm"
-            />
-          </div>
-        </header>
-
-        {viewMode === "dashboard" && (
-          <DashboardView metrics={metrics} runtime={runtime} documents={documents} onComplete={syncBackend} />
-        )}
-        {viewMode === "network" && <NetworkView />}
-        {viewMode === "sources" && <SourcesView documents={documents} onComplete={syncBackend} />}
-        {viewMode === "agents" && <AgentsView />}
+        </AppShell>
 
         <NodeInspector />
         <CommandPalette />

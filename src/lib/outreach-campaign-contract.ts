@@ -1,0 +1,11 @@
+import { z } from 'zod';
+export const replyObjectiveSchema=z.enum(['book-call','visit-website','answer-questions','qualify-interest','send-information','human-handoff']);
+export const replyRuleSchema=z.object({id:z.string().min(1).max(40).regex(/^[a-z0-9-]+$/),enabled:z.boolean(),text:z.string().max(1000).optional()}).strict();
+export const campaignPreferencesSchema=z.object({openingMessage:z.string().max(8000),standardFooter:z.string().max(2000).default(""),replyHtmlTemplate:z.string().max(20000).default(""),replyObjectives:z.array(replyObjectiveSchema).max(6),replyRules:z.array(replyRuleSchema).max(20),updatedAt:z.string().nullable()});
+export const campaignSegmentSchema=z.enum(['all','b2b-corporate','b2b-institutional','b2c-personal','dual-channel']);
+export const campaignInputSchema=z.object({action:z.literal('start-batch'),batchSize:z.number().int().min(1).max(135),segment:campaignSegmentSchema,mode:z.enum(['autonomous-paced','review-required']),inference:z.literal('live'),requestId:z.string().uuid(),permissionGranted:z.boolean().default(false),permissionReference:z.string().max(1000).default('')}).strict();
+export const campaignSummarySchema=z.object({id:z.string().uuid(),requested:z.number(),selected:z.number(),segment:campaignSegmentSchema,mode:z.enum(['autonomous-paced','review-required']),status:z.enum(['held','queued','paused','cancelled']),createdAt:z.string(),reason:z.string().nullable()});
+export const campaignTemplatePreviewSchema=z.object({leadId:z.string(),leadName:z.string(),text:z.string(),missing:z.array(z.string())}).strict();
+export const campaignOverviewSchema=z.object({cohorts:z.array(z.object({id:campaignSegmentSchema,label:z.string(),total:z.number(),available:z.number(),suppressed:z.number(),enrolled:z.number(),held:z.number(),crmSynced:z.number(),crmIndexed:z.number()})),batches:z.array(campaignSummarySchema),ramp:z.array(z.number()),totalEmailCap:z.number(),readiness:z.array(z.string()),preferences:campaignPreferencesSchema,templateContacts:z.array(z.object({id:z.string(),label:z.string()})).optional()});
+
+export const campaignControlSchema=z.object({action:z.enum(["pause-batch","resume-batch","cancel-batch"]),id:z.string().uuid()}).strict();

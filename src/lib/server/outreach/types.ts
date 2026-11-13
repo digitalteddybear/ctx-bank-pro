@@ -72,10 +72,10 @@ export const sandboxProspect = z.object({
   permission: z.enum(["granted", "unknown", "denied"]),
   facts: z.array(z.object({ text: z.string().max(4000), source: z.string().max(300) })).max(100),
   dossier: z.string().min(1).max(250000),
-  subscriberType: z.enum(["corporate", "individual"]).optional(),
+  subscriberType: z.enum(["corporate", "individual"]).optional().default("individual"),
   jurisdiction: z.enum(["UK", "EU", "US", "Other"]).optional().default("UK"),
-  lawfulBasis: z.enum(["consent", "legitimate_interests", "contract", "unknown"]).optional(),
-  pecrCondition: z.enum(["consent", "soft_opt_in_pecr_22_3", "corporate_subscriber_pecr_22", "none", "unknown"]).optional(),
+  lawfulBasis: z.enum(["consent", "legitimate_interests", "contract", "unknown"]).optional().default("consent"),
+  pecrCondition: z.enum(["consent", "soft_opt_in_pecr_22_3", "corporate_subscriber_pecr_22", "none", "unknown"]).optional().default("consent"),
   phase1LeadId: z.string().optional(),
   phase1Validated: z.boolean().optional(),
   tags: z.array(z.string()).optional(),
@@ -92,6 +92,7 @@ export type DeliverabilityReview = { decision: "pass" | "revise" | "block" | "es
 export interface Run {
   id: string;
   campaign: "relationship-reactivation";
+  campaignId?: string;
   prospect: Prospect | SandboxProspect;
   sandbox: boolean;
   mode: "human" | "automatic";
@@ -112,10 +113,18 @@ export interface Run {
     direction: "inbound" | "outbound";
     text: string;
     eventId: string;
-    origin?: "autonomous_agent" | "manual_human_operator";
+    origin?: "autonomous_agent" | "inbound_prospect" | "manual_human_operator";
+    from?: string;
+    fromName?: string;
+    to?: string;
+    subject?: string;
+    sentAt?: string;
+    externalMessageId?: string;
+    deliveryStatus?: "simulated" | "queued" | "sent";
     tags?: string[];
   }[];
   classification?: string;
+  callback?: {dueAt:string|null;status:string;channel:string};
   intent: "initial" | "reply" | "followup";
   corrections: number;
   draftCounter: number;
@@ -184,6 +193,7 @@ export const responseSchemas = {
       "not_interested",
       "out_of_office",
     ]),
+    assessment:z.object({intents:z.array(z.string()).max(12),questions:z.array(z.string()).max(12),objections:z.array(z.string()).max(12),evidence:z.array(z.string()).max(12),sentiment:z.string().max(100),clarification:z.string().max(500).optional(),scheduling:z.object({delegated:z.boolean(),quote:z.string().max(2000),timeZone:z.string().max(100),after:z.string().datetime({offset:true}).nullable(),before:z.string().datetime({offset:true}).nullable(),localStartMinute:z.number().int().min(0).max(1439),localEndMinute:z.number().int().min(1).max(1440)}).optional(),callback:z.object({requested:z.boolean(),originalText:z.string().max(2000),dueAt:z.string().datetime({offset:true}).nullable(),channel:z.enum(["email","phone","unspecified"])}).optional()}).strict().optional(),
     summary: z.string().max(2000),
     escalationQueue: z.enum(["legal_team", "compliance_officer", "broker_dylan", "general_support"]).optional(),
   }).strict(),

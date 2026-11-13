@@ -11,7 +11,7 @@ if (!ingestionRoot || !graphRuntimePath || !documentId) {
 }
 
 const client = new Client({
-  name: "world-creators-mcp-qa",
+  name: "asp-invest-mcp-qa",
   version: "1.0.0",
 });
 const transport = new StdioClientTransport({

@@ -33,10 +33,13 @@ export function CommandPalette() {
   const searchSource = useMemo<SearchSource<GraphCommandItem>>(
     () => ({
       bootstrap: () => [
+        { id: "navigate-agents", label: "Open Agents & Operations", auxiliaryData: { group: "Navigate", detail: "Swarm profiles, inbox queue, and telemetry" } },
+        { id: "navigate-catalog", label: "Open System Catalog & Registry", auxiliaryData: { group: "Navigate", detail: "Browse section IDs, feature labels, and instructional tags" } },
+        { id: "navigate-architecture", label: "Open Architecture", auxiliaryData: { group: "Navigate", detail: "Browse agent and RAG source; edit review drafts" } },
         {
           id: "navigate-dashboard",
-          label: "Open Knowledge Bank Status",
-          auxiliaryData: { group: "Navigate", detail: "Dashboard overview" },
+          label: "Open Mission Control",
+          auxiliaryData: { group: "Navigate", detail: "Mission Control & outreach analytics" },
         },
         {
           id: "navigate-network",
@@ -58,8 +61,9 @@ export function CommandPalette() {
           },
         })),
       ],
-      search: (query) =>
-        searchGraph(snapshot, query, 12).map(({ node, reasons }) => ({
+      search: (query) => [
+        ...("architecture agents rag source code".includes(query.toLowerCase()) ? [{ id: "navigate-architecture", label: "Open Architecture", auxiliaryData: { group: "Navigate" as const, detail: "Browse agent and RAG source; edit review drafts" } }] : []),
+        ...searchGraph(snapshot, query, 12).map(({ node, reasons }) => ({
           id: `node-${node.id}`,
           label: node.label,
           auxiliaryData: {
@@ -68,6 +72,7 @@ export function CommandPalette() {
             detail: `${nodeTypeLabels[node.type]} · ${reasons.join(" · ")}`,
           },
         })),
+      ],
     }),
     [snapshot],
   );
@@ -75,7 +80,10 @@ export function CommandPalette() {
   const choose = (itemId: string) => {
     if (itemId === "navigate-dashboard") setViewMode("dashboard");
     if (itemId === "navigate-network") setViewMode("network");
+    if (itemId === "navigate-architecture") setViewMode("architecture");
     if (itemId === "navigate-sources") setViewMode("sources");
+    if (itemId === "navigate-agents") setViewMode("agents");
+    if (itemId === "navigate-catalog") setViewMode("catalog");
     if (itemId.startsWith("node-")) {
       const nodeId = itemId.slice("node-".length);
       selectNode(nodeId);

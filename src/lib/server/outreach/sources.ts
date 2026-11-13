@@ -29,6 +29,7 @@ const officialHosts = new Set([
   "rfc-editor.org",
   "datatracker.ietf.org",
   "aspinvest.co.uk",
+  "www.aspinvest.co.uk",
 ]);
 
 export function approvedUrl(url: string, internal = false) {
@@ -183,9 +184,9 @@ export function evaluateApplicability(
 }
 
 /** Daily scheduler fetches fixed registered URLs only. Changed content requires review. */
-export async function refreshSources(store: OutreachStore, force = false) {
+export async function refreshSources(store: OutreachStore, force = false, includeFixtures = false) {
   for (const source of store.sourceList()) {
-    if (source.fixture || source.kind === "asp-policy" || (!force && Date.now() - source.checkedAt < 86400000)) continue;
+    if ((!includeFixtures && source.fixture) || source.kind === "asp-policy" || (!force && !source.fixture && Date.now() - source.checkedAt < 86400000)) continue;
     try {
       approvedUrl(source.url);
       const response = await fetch(source.url, { redirect: "error", signal: AbortSignal.timeout(20000), headers: { Accept: "text/html,text/plain" } });

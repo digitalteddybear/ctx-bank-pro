@@ -24,9 +24,9 @@ const result = (value: unknown) => ({
 server.registerTool(
   "search_knowledge",
   {
-    title: "Search World Creators knowledge",
+    title: "Search ASP Private Capital knowledge",
     description:
-      "Search active World Creators knowledge by title, description, topic, or node type.",
+      "Search active ASP Private Capital knowledge by title, description, topic, or node type.",
     inputSchema: {
       query: z.string().describe("Natural-language or exact-term query"),
       limit: z.number().int().min(1).max(50).default(12),
@@ -274,7 +274,7 @@ server.registerTool(
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("World Creators Knowledge Network MCP server running on stdio");
+  console.error("CTX BankPro Knowledge Network MCP server running on stdio");
 }
 
 main().catch((error) => {

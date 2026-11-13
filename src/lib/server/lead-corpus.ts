@@ -1,3 +1,4 @@
+import { hubspotContext } from "./integrations/hubspot-lead-context";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -5,7 +6,7 @@ import type { GraphSnapshot, KnowledgeNode } from "../graph/types";
 import { humanizeValue, mailboxResultPhrase, naturalName } from "../graph/lead-dossier";
 
 // This adapter consumes the Python pipeline's retained dossiers directly.
-// The quarantine and the unfiltered 1,000-record JSON are deliberately separate.
+// The quarantine and unfiltered source data are deliberately separate.
 export const leadCorpusRoot = process.env.CTX_LEAD_CORPUS_PATH ?? path.join(
   /*turbopackIgnore: true*/ process.cwd(), "../../RAG/corpus/chunks/normalized-contacts",
 );
@@ -58,12 +59,15 @@ export async function loadLeadGraph(): Promise<GraphSnapshot> {
   ))).flat().sort();
   if (!files.length) throw new Error(`No retained lead dossiers found in ${leadCorpusRoot}`);
   const stats = await mapWithConcurrency(files, (file) => fs.stat(path.join(leadCorpusRoot, file)));
-  const signature = createHash("sha256").update(files.map((file, i) => `${file}:${stats[i].mtimeMs}:${stats[i].size}`).join("\n")).digest("hex");
+  const crm = hubspotContext();
+  const crmRecords = crm.snapshots();
+  const crmSignature = crmRecords.map(r => `${r.hubspotId}:${r.revision}:${crm.contact(r.hubspotId)?.indexState}`).join("|");
+  const signature = createHash("sha256").update(files.map((file, i) => `${file}:${stats[i].mtimeMs}:${stats[i].size}`).join("\n") + crmSignature).digest("hex");
   if (cached?.signature === signature) return structuredClone(cached.graph);
   const generatedAt = new Date(Math.max(...stats.map((stat) => stat.mtimeMs))).toISOString();
   const graph: GraphSnapshot = { schemaVersion: "1.0", generatedAt, nodes: [], links: [], activities: [] };
   const base = { status: "review" as const, authority: "operational" as const, confidence: 1, tags: [], sources: [], createdAt: generatedAt, updatedAt: generatedAt };
-  graph.nodes.push({ ...base, id: "asp-invest", label: "ASP Private Capital", type: "organization", description: `Retained lead dossiers from the 1,000-contact Phase 1 sample. ${files.length} retained contacts; quarantine is stored separately.` });
+  graph.nodes.push({ ...base, id: "asp-invest", label: "ASP Private Capital", type: "organization", description: `Retained lead dossiers from the Phase 1 corpus. ${files.length} retained contacts; quarantine is stored separately.` });
   const groups = new Set<string>();
   const ids = new Set<string>();
   const documents = await mapWithConcurrency(files, (file) => fs.readFile(path.join(leadCorpusRoot, file), "utf8"));
@@ -87,6 +91,11 @@ export async function loadLeadGraph(): Promise<GraphSnapshot> {
       tags: ["prospect", classification, field(markdown, "Raw Email"), field(markdown, "Reachability Tier")].filter(Boolean),
       sources: [{ sourceId: `dossier-${hubspotId}`, path: sourcePath, locator: `HubSpot contact ${hubspotId}`, excerpt: markdown }],
     };
+    const context = crm.context(hubspotId);
+    if (context) {
+      node.crmContext = context;
+      node.sources.push({ sourceId: `hubspot-${hubspotId}-${context.revision}`, path: `hubspot:contacts/${hubspotId}`, locator: `CRM observed ${context.observedAt}`, excerpt: JSON.stringify(context) });
+    }
     graph.nodes.push(node);
     graph.links.push({ id: `link-${node.id}`, source: groupId, target: node.id, type: "contains", strength: 0.7, verified: true, createdAt: generatedAt, updatedAt: generatedAt });
   }

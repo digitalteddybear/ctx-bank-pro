@@ -1,0 +1,9 @@
+**
+!RAG/
+!RAG/pyproject.toml
+!RAG/uv.lock
+!RAG/*.py
+!App/
+!App/knowledge-network/
+!App/knowledge-network/docker/
+!App/knowledge-network/docker/rag-index-worker.py

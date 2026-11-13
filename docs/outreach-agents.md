@@ -1,5 +1,12 @@
 # Phase 2 outreach backend — inside the existing CTX application
 
+> Status note (2026-11-04): This page records an earlier sandbox milestone.
+> The current controlled demo has SMTP/IMAP delivery, HubSpot contact property
+> and email activity operations, and a signed Cal.com booking webhook. The
+> historical status text below is not a statement of current adapter coverage.
+> The live demo sends a booking link after an inbound reply; Cal.com confirms
+> the prospect-selected slot through the webhook.
+
 ## Status and boundaries
 
 This is a sandbox backend milestone, not a production outreach launch.
@@ -14,6 +21,10 @@ Messages enter a local simulated outbox; CRM updates and bookings are audit
 events, not changes to external systems. The intended sender is
 `dylan@aspinvest.co.uk`; the booking link is
 `https://cal.com/asp-private-capital/opportunities`.
+Initial messages never include a booking link. A unique Cal.com link is created
+after an inbound reply and included only when the prospect requests or welcomes
+a call. Campaign templates support contact and sender fields, plus a
+user-configured company/privacy footer; the footer is not fabricated by CTX.
 
 ## Five specialised agents
 

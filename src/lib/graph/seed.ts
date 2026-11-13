@@ -81,7 +81,7 @@ const masterSource = source(
 );
 const bulletproofSource = source(
   "source-bulletproof-workspace",
-  "../all-other-files/World Creators 2.0/Stage 1/Bulletproof Offer Notion Document/Full Notion File/Stage 1 Create Your World/Bulletproof Offer™ Doc/Workspace 2beb44897b79812cbd16fd839082ad74_all.csv",
+  "../all-other-files/ASP-Private-Capital/Stage-1/Bulletproof-Offer-Workspace.csv",
   "Authoritative eight-stage workspace export",
 );
 const creatorSource = source(
@@ -97,10 +97,10 @@ const conversionSource = source(
 
 const nodes: KnowledgeNode[] = [
   node(
-    "world-creators",
-    "World Creators",
+    "asp-private-capital",
+    "ASP Private Capital",
     "organization",
-    "A strategy, offer-engineering, content, and conversion-infrastructure firm for performance-driven entrepreneurs and small teams.",
+    "A private-market liaison and capital introducer bridging private investors with institutional opportunities across managed funds, private equity, and precious metals.",
     { authority: "primary", sources: [architectureSource], tags: ["core", "organization"] },
   ),
   node(
@@ -279,7 +279,7 @@ const nodes: KnowledgeNode[] = [
     "source-business-architecture",
     "Operational Context & Knowledge Bank",
     "source",
-    "The audited World Creators business architecture and evidence register.",
+    "The audited ASP Private Capital business architecture and evidence register.",
     { authority: "primary", sources: [architectureSource], tags: ["source", "audited"] },
   ),
   node(
@@ -335,9 +335,9 @@ const nodes: KnowledgeNode[] = [
 ];
 
 const links: KnowledgeLink[] = [
-  link("l-001", "world-creators", "strategic-synthesis", "contains"),
-  link("l-002", "world-creators", "community-mentorship", "contains"),
-  link("l-003", "world-creators", "automation-deployment", "contains"),
+  link("l-001", "asp-private-capital", "strategic-synthesis", "contains"),
+  link("l-002", "asp-private-capital", "community-mentorship", "contains"),
+  link("l-003", "asp-private-capital", "automation-deployment", "contains"),
   link("l-004", "strategic-synthesis", "creator-signature", "delivers"),
   link("l-005", "strategic-synthesis", "bulletproof-offer", "delivers"),
   link("l-006", "strategic-synthesis", "contextual-engineering", "contains"),
@@ -355,16 +355,16 @@ const links: KnowledgeLink[] = [
   link("l-018", "bulletproof-offer", "qualified-founder", "targets"),
   link("l-019", "automation-deployment", "qualified-founder", "targets"),
   link("l-020", "bulletproof-offer", "unique-mechanism-builder", "contains"),
-  link("l-021", "world-creators", "performance-frame", "contains"),
-  link("l-022", "world-creators", "authorship-frame", "contains"),
-  link("l-023", "world-creators", "infrastructure-frame", "contains"),
+  link("l-021", "asp-private-capital", "performance-frame", "contains"),
+  link("l-022", "asp-private-capital", "authorship-frame", "contains"),
+  link("l-023", "asp-private-capital", "infrastructure-frame", "contains"),
   link("l-024", "performance-frame", "conversion-core", "supports"),
   link("l-025", "authorship-frame", "creator-signature", "supports"),
   link("l-026", "infrastructure-frame", "second-brain", "supports"),
-  link("l-027", "world-creators", "revenue-portfolio", "contains"),
+  link("l-027", "asp-private-capital", "revenue-portfolio", "contains"),
   link("l-028", "creator-signature-demand", "creator-signature", "derived_from"),
   link("l-029", "commercial-evidence-gap", "creator-signature-demand", "related_to"),
-  link("l-030", "source-business-architecture", "world-creators", "defines"),
+  link("l-030", "source-business-architecture", "asp-private-capital", "defines"),
   link("l-031", "source-master-context", "strategic-synthesis", "supports"),
   link("l-032", "source-bulletproof-workspace", "bulletproof-offer", "defines"),
   link("l-033", "source-creator-signature", "creator-signature", "defines"),

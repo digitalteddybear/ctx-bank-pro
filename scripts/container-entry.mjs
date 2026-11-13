@@ -1,0 +1,10 @@
+import { readFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+const names=["CTX_OUTREACH_OPERATOR_TOKEN","AGENT_WRITE_TOKEN","CTX_SESSION_SECRET","CTX_ADMIN_PASSWORD_HASH","CTX_SETTINGS_KEY","GMAIL_APP_PASSWORD","HUBSPOT_ACCESS_TOKEN","CAL_API_KEY","OPENAI_API_KEY","OPENROUTER_API_KEY","ANTHROPIC_API_KEY"];
+for(const name of names)if(process.env[name+"_FILE"])process.env[name]=readFileSync(process.env[name+"_FILE"],"utf8").trim();
+const [command,...args]=process.argv.slice(2);
+if(!command)throw new Error("Container command is required.");
+const child=spawn(command,args,{stdio:"inherit",env:process.env});
+for(const signal of ["SIGTERM","SIGINT"])process.on(signal,()=>child.kill(signal));
+child.on("error",()=>process.exit(1));
+child.on("exit",code=>process.exit(code??1));

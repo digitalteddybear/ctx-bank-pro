@@ -1,0 +1,101 @@
+name: ctx
+x-runtime: &runtime
+  image: ctx-app:local
+  init: true
+  restart: unless-stopped
+  env_file: ./deploy/runtime.env
+  volumes:
+    - ctx-data:/data
+    - ctx-data:/app/data
+    - ctx-config:/config
+    - ../../RAG/corpus/chunks/normalized-contacts:/corpus:ro
+    - ../../RAG/tools:/workspace/RAG/tools:ro
+    - ../../RAG/rag_agent.py:/workspace/RAG/rag_agent.py:ro
+    - ../../RAG/README.md:/workspace/RAG/README.md:ro
+
+  secrets: [admin-password-hash, session-secret, settings-key, operator-token, write-token]
+  stop_grace_period: 45s
+services:
+  web:
+    <<: *runtime
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    environment:
+      CTX_REQUIRE_LOGIN: "true"
+      CTX_WORKER_MODE: external
+      CTX_HUBSPOT_AUDIT_DB_PATH: /data/outreach/hubspot_audit.sqlite
+      CTX_OUTREACH_DB_PATH: /data/outreach/workflows.sqlite
+      CTX_AI_WORKSPACE_DB_PATH: /data/ai-workspace/workspace.sqlite
+      GRAPH_RUNTIME_PATH: /data/graph/runtime-graph.json
+      CTX_WORKSPACE_ROOT: /workspace
+      CTX_CONFIG_DIR: /config
+      CTX_LEAD_CORPUS_PATH: /corpus
+      CTX_RAG_INDEX_MODE: external
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+  worker:
+    <<: *runtime
+    command: ["npm", "run", "outreach:service"]
+    environment:
+      CTX_WORKER_MODE: worker
+      CTX_HUBSPOT_AUDIT_DB_PATH: /data/outreach/hubspot_audit.sqlite
+      CTX_OUTREACH_DB_PATH: /data/outreach/workflows.sqlite
+      CTX_LEAD_CORPUS_PATH: /corpus
+      CTX_WORKSPACE_ROOT: /workspace
+      CTX_CONFIG_DIR: /config
+      CTX_RAG_INDEX_MODE: external
+    healthcheck:
+      test: ["CMD", "node", "scripts/worker-health.mjs"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+  rag-index:
+    build:
+      context: ../..
+      dockerfile: App/knowledge-network/docker/Dockerfile.rag
+    init: true
+    restart: unless-stopped
+    environment:
+      CTX_HUBSPOT_AUDIT_DB_PATH: /data/outreach/hubspot_audit.sqlite
+      CTX_OUTREACH_DB_PATH: /data/outreach/workflows.sqlite
+      CTX_EMBEDDINGS_PROVIDER: fastembed
+    volumes:
+      - ctx-data:/data
+      - ctx-models:/models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import time,pathlib; p=pathlib.Path('/data/rag-heartbeat'); exit(0 if p.exists() and time.time()-float(p.read_text())<120 else 1)"]
+      interval: 30s
+      start_period: 300s
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      CTX_DOMAIN:
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ctx-tls:/data
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  ctx-data:
+  ctx-config:
+  ctx-models:
+  ctx-tls:
+
+secrets:
+  admin-password-hash:
+    file: ./deploy/secrets/admin-password-hash
+  session-secret:
+    file: ./deploy/secrets/session-secret
+  settings-key:
+    file: ./deploy/secrets/settings-key
+  operator-token:
+    file: ./deploy/secrets/operator-token
+  write-token:
+    file: ./deploy/secrets/write-token

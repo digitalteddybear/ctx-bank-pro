@@ -59,6 +59,7 @@ export function searchGraph(
     keys: [
       { name: "label", weight: 0.45 },
       { name: "description", weight: 0.28 },
+      { name: "crmContext.properties", weight: 0.1, getFn: (node: KnowledgeNode) => Object.values(node.crmContext?.properties ?? {}).filter((v): v is string => typeof v === "string") },
       { name: "tags", weight: 0.17 },
       { name: "type", weight: 0.1 },
     ],

@@ -65,7 +65,13 @@ export interface SourceReference {
   excerpt?: string;
 }
 
+export interface LeadCrmContext {
+  source: string; revision: string; observedAt: string; indexState: string; notice: string;
+  properties: Record<string, string | null | undefined>;
+}
+
 export interface KnowledgeNode {
+  crmContext?: LeadCrmContext;
   id: string;
   label: string;
   type: NodeType;

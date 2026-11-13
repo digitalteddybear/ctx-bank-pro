@@ -4,6 +4,8 @@ export type AgentSender = Agent | "orchestrator" | "regulatory_watcher" | "syste
 export type AgentRecipient = Agent | "orchestrator" | "*";
 
 export type InterAgentMessageType =
+  | "OPERATOR_INSTRUCTION_RECEIVED"
+  | "OPERATOR_OPTIMIZATION_APPLIED"
   | "REGULATORY_UPDATE_DETECTED"
   | "PERIMETER_CONSTRAINT_BROADCAST"
   | "PROSPECT_OBJECTION_PROPAGATED"

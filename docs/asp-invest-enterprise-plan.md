@@ -8,7 +8,7 @@ The active application is `App/knowledge-network`. Its Next.js shell, graph rend
 - Represent each retained lead once, keyed by immutable HubSpot ID, with links through classification groups to ASP Invest.
 - Keep the original Markdown in source provenance; display readable descriptions starting with a prospect summary.
 - Retain 949 contacts from the 1,000-contact experiment; the 51 quarantined contacts remain separate.
-- Separate ASP runtime data and uploads under `data/asp-invest`. Existing World Creators files remain recoverable in their original locations.
+- Separate ASP runtime data and uploads under `data/asp-invest`. Prior workspace files remain recoverable in their original locations.
 - The existing browser polls every four seconds. The server checks dossier file metadata and rebuilds the graph when files change. `CTX_LEAD_CORPUS_PATH` can point to a mounted corpus on another host.
 
 ## 1. Complete and harden the knowledge workflow

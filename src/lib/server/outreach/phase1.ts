@@ -35,8 +35,8 @@ export async function phase1SandboxProspect(id: string) {
 
 /** Verify if an email belongs to a retained Phase 1 validated lead. */
 export async function findPhase1LeadByEmail(email: string) {
-  const snapshot = await loadLeadGraph();
   const normalizedTarget = email.toLowerCase().trim();
+  const snapshot = await loadLeadGraph();
   const lead = snapshot.nodes.find(node => {
     if (!node.id.startsWith("lead-") || node.deletedAt) return false;
     const excerpt = node.sources[0]?.excerpt;

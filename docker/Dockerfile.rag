@@ -1,0 +1,11 @@
+FROM python:3.12-slim
+RUN pip install --no-cache-dir uv==0.8.22
+WORKDIR /rag
+COPY RAG/pyproject.toml RAG/uv.lock ./
+RUN uv sync --frozen --no-dev
+COPY RAG/*.py ./
+COPY App/knowledge-network/docker/rag-index-worker.py /worker.py
+RUN useradd --uid 1000 --create-home ctx && mkdir -p /data /models && chown ctx:ctx /data /models
+USER ctx
+ENV PATH="/rag/.venv/bin:$PATH" HF_HOME=/models CTX_OUTREACH_DB_PATH=/data/outreach/workflows.sqlite
+CMD ["python", "/worker.py"]

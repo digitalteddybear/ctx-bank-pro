@@ -7,7 +7,10 @@ const root = path.resolve("../../RAG/corpus/chunks/normalized-contacts");
 const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "ctx-corpus-qa-"));
 process.env.CTX_LEAD_CORPUS_PATH = fixtureRoot;
 const { loadLeadGraph } = await import("../src/lib/server/lead-corpus");
-const files = (await Promise.all((await fs.readdir(root)).map(async (segment) =>
+const segments = (await fs.readdir(root, { withFileTypes: true }))
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name);
+const files = (await Promise.all(segments.map(async (segment) =>
   (await fs.readdir(path.join(root, segment))).filter((file) => file.endsWith(".md")).map((file) => path.join(segment, file)),
 ))).flat();
 for (const segment of new Set(files.map((file) => path.dirname(file)))) await fs.mkdir(path.join(fixtureRoot, segment));

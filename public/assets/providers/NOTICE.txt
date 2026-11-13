@@ -1,0 +1,3 @@
+Provider marks: @lobehub/icons-static-svg 1.102.0 (MIT). https://github.com/lobehub/lobe-icons
+Trademarks belong to their respective owners. Marks identify connection providers; no affiliation is implied.
+Monochrome marks use neutral grey for light/dark contrast.

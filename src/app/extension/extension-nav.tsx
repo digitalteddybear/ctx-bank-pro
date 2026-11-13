@@ -5,6 +5,7 @@ const extensionSections = [
   ["scope", "Scope"],
   ["start", "Run locally"],
   ["workspace", "Workspace map"],
+  ["taxonomy", "Section & Feature Catalog"],
   ["human-workflow", "Human workflow"],
   ["agent-workflow", "Agent workflow"],
   ["mcp", "MCP tools"],

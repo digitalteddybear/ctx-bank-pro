@@ -5,6 +5,16 @@ import { OutreachStore } from "../src/lib/server/outreach/store";
 import { OutreachEngine } from "../src/lib/server/outreach/engine";
 import { ConfigurableModel, FixtureModel } from "../src/lib/server/outreach/models";
 import { refreshSources, seedFixtureSources, usableSources } from "../src/lib/server/outreach/sources";
+import fs from "node:fs";
+
+const envPath = path.join(process.cwd(), ".env.local");
+if (fs.existsSync(envPath) && typeof process.loadEnvFile === "function") {
+  try {
+    process.loadEnvFile(envPath);
+  } catch {
+    // Ignored
+  }
+}
 
 const live = process.argv.includes("--live");
 const worker = process.argv.includes("--worker");

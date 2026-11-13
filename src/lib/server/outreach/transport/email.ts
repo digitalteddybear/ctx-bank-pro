@@ -1,4 +1,7 @@
 import nodemailer from "nodemailer";
+import { renderReplyHtml } from "./reply-html";
+import { findPhase1LeadByEmail } from "../phase1";
+import { validateTestRecipientBoundary } from "../test-boundary";
 import {
   HEADER_ASP_AGENT,
   HEADER_ASP_ORIGIN,
@@ -13,10 +16,16 @@ export interface SendEmailOptions {
   to: string;
   subject: string;
   text: string;
-  from?: string;
+  intent?: "initial" | "reply" | "followup";
+  htmlTemplate?: string;
+  messageId?: string;
+  inReplyTo?: string;
+  references?: string[];
+  from?: string | { name: string; address: string };
   runId?: string;
   phase1LeadId?: string;
   phase1Validated?: boolean;
+  isTestRecipient?: boolean;
   origin?: "autonomous_agent" | "manual_human_operator";
 }
 
@@ -45,17 +54,41 @@ export async function sendLiveOutreachEmail(options: SendEmailOptions): Promise<
     };
   }
 
-  // Safeguard: Strict Phase 1 perimeter check
-  const phase1Check = validatePhase1Contact({
-    email: options.to,
-    phase1LeadId: options.phase1LeadId,
-    phase1Validated: options.phase1Validated,
-  });
-  if (!phase1Check.valid && process.env.NODE_ENV !== "test") {
-    return {
-      sent: false,
-      error: phase1Check.reason,
-    };
+  // Explicit Test-Recipient Boundary vs. Production Phase 1 Cohort Boundary
+  const testBoundary = validateTestRecipientBoundary(options.to, options.phase1LeadId);
+
+  if (options.isTestRecipient || testBoundary.isDesignatedTestRecipient) {
+    // === EXPLICIT TEST-RECIPIENT BOUNDARY ===
+    // Enforces production-launch.txt Item 1.64-66:
+    // Only designated controlled inboxes are permitted; arbitrary address bypass is denied.
+    if (!testBoundary.valid) {
+      return {
+        sent: false,
+        error: `[TEST_BOUNDARY_REJECTED] ${testBoundary.reason}`,
+      };
+    }
+  } else {
+    // === PRODUCTION PHASE 1 COHORT BOUNDARY ===
+    // Safeguard: Strict Phase 1 perimeter check
+    const phase1Check = validatePhase1Contact({
+      email: options.to,
+      phase1LeadId: options.phase1LeadId,
+      phase1Validated: options.phase1Validated,
+    });
+    if (!phase1Check.valid && process.env.NODE_ENV !== "test") {
+      return {
+        sent: false,
+        error: phase1Check.reason,
+      };
+    }
+
+    // Transport is also called by CLI scripts; never trust caller-supplied cohort flags.
+    if (process.env.NODE_ENV !== "test") {
+      const canonical = await findPhase1LeadByEmail(options.to);
+      if (!canonical || canonical.id !== options.phase1LeadId) {
+        return { sent: false, error: "Recipient and lead ID do not match the retained Phase 1 corpus." };
+      }
+    }
   }
 
   try {
@@ -67,21 +100,25 @@ export async function sendLiveOutreachEmail(options: SendEmailOptions): Promise<
       },
     });
 
-    const fromAddress = options.from ?? `"Dylan (ASP Private Capital)" <${user.trim()}>`;
+    const fromAddress = options.from ?? { name: process.env.CTX_SENDER_NAME ?? "Dylan (ASP Private Capital)", address: user.trim() };
 
     const headers: Record<string, string> = {
       [HEADER_ASP_ORIGIN]: options.origin ?? VALUE_ASP_AUTONOMOUS_AGENT,
       [HEADER_ASP_AGENT]: "Dylan (ASP Private Capital)",
       [HEADER_ASP_WORKFLOW_ID]: options.runId ?? "unspecified",
-      [HEADER_ASP_PHASE1_LEAD]: options.phase1LeadId ?? "lead-phase1-verified",
-      [HEADER_ASP_PHASE1_VALIDATED]: "true",
+      [HEADER_ASP_PHASE1_LEAD]: options.phase1LeadId ?? (testBoundary.isDesignatedTestRecipient ? `lead-${testBoundary.testRecord?.hubspotId}` : "lead-phase1-verified"),
+      [HEADER_ASP_PHASE1_VALIDATED]: testBoundary.isDesignatedTestRecipient ? "test-boundary" : "true",
     };
 
     const info = await transporter.sendMail({
       from: fromAddress,
       to: options.to.trim(),
       subject: options.subject,
+      messageId: options.messageId,
+      inReplyTo: options.inReplyTo,
+      references: options.references,
       text: options.text,
+      ...(options.intent === "reply" || options.intent === "followup" ? { html: renderReplyHtml(options.text, options.htmlTemplate) } : {}),
       headers,
     });
 

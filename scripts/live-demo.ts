@@ -10,6 +10,7 @@ import { seedFixtureSources } from "../src/lib/server/outreach/sources";
 import { sendLiveOutreachEmail } from "../src/lib/server/outreach/transport/email";
 import {
   fetchLatestInboundReply,
+  inboundReplyEventId,
   checkOperatorSentIntervention,
   getExistingProspectMessageUids,
 } from "../src/lib/server/outreach/transport/imap";
@@ -484,7 +485,7 @@ async function main() {
         console.log("\x1b[33m[1/4] 🧠 Conversation Router:\x1b[0m Ingesting reply and analyzing intent & sentiment...");
         await sleep(600);
 
-        engine.reply(runId!, `imap-${inbound.uid}`, inbound.text);
+        engine.reply(runId!,inboundReplyEventId(inbound.uid,inbound.mailboxId),inbound.text);
         await drain();
 
         const updatedRun = store.get(runId!);

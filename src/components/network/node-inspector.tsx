@@ -1,5 +1,6 @@
 "use client";
 
+import { LeadCrmContext } from "./lead-crm-context";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
@@ -19,6 +20,9 @@ import { Badge, Button, IconButton } from "@/components/ui/primitives";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Markdown } from "@astryxdesign/core/Markdown";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
+import { requestBackendSync } from "@/lib/backend-sync";
 
 const statusTone = {
   verified: "success",
@@ -60,6 +64,8 @@ function ProspectDossier({ node }: { node: KnowledgeNode }) {
         </dl>
       </section>
 
+      <LeadCrmContext key={node.id} id={node.id.replace(/^lead-/, "")} />
+
       {dossier.sections.map((section) => (
         <section className="inspector__section prospect-section" key={section.title}>
           <h3>{section.title}</h3>
@@ -84,12 +90,16 @@ export function NodeInspector() {
   const selectedNodeId = useGraphStore((state) => state.selectedNodeId);
   const inspectorOpen = useGraphStore((state) => state.inspectorOpen);
   const setInspectorOpen = useGraphStore((state) => state.setInspectorOpen);
-  const setSnapshot = useGraphStore((state) => state.setSnapshot);
   const selectNode = useGraphStore((state) => state.selectNode);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [writeToken, setWriteToken] = useState("");
+  const [tagText, setTagText] = useState<string | null>(null);
+  const [tagError, setTagError] = useState("");
+  const [savingTags, setSavingTags] = useState(false);
+  useEffect(() => { setTagText(null); setTagError(""); }, [selectedNodeId]);
   const node = snapshot.nodes.find((item) => item.id === selectedNodeId);
   const isProspect = Boolean(node?.id.startsWith("lead-"));
   const neighborhood = useMemo(
@@ -126,10 +136,9 @@ export function NodeInspector() {
     setDeleteError(null);
 
     try {
-      const response = await fetch(`/api/graph/${node.id}/console-delete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmation: deleteConfirmation }),
+      const response = await fetch(`/api/graph/${encodeURIComponent(node.id)}`, {
+        method: "DELETE",
+        headers: { "x-agent-token": writeToken },
       });
       const result = (await response.json()) as { error?: string };
 
@@ -137,10 +146,7 @@ export function NodeInspector() {
         throw new Error(result.error ?? "The node could not be deleted.");
       }
 
-      const snapshotResponse = await fetch("/api/graph", { cache: "no-store" });
-      if (snapshotResponse.ok) {
-        setSnapshot(await snapshotResponse.json());
-      }
+      requestBackendSync();
 
       closeDeleteDialog(true);
       selectNode(null);
@@ -202,18 +208,22 @@ export function NodeInspector() {
           </div>
         </section>
 
-        {node.tags.length > 0 && (
-          <section className="inspector__section" id="node-tags">
-            <div className="section-label">Tags</div>
-            <div className="tag-list">
-              {node.tags.map((tag) => (
-                <span className="tag" key={tag}>
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
+        <VStack as="section" className="inspector__section" id="node-tags" gap={2}>
+          <TextInput label="Graph write token" type="password" value={writeToken} onChange={setWriteToken} description="Use the configured graph operator token to edit or delete records." />
+          <TextInput label="Tags" value={tagText ?? node.tags.join(", ")} onChange={setTagText} description="Separate tags with commas." />
+          {tagError && <Text role="alert">{tagError}</Text>}
+          <HStack><Button loading={savingTags} onClick={async () => {
+            setSavingTags(true); setTagError("");
+            try {
+              const tags = [...new Set((tagText ?? node.tags.join(",")).split(",").map(tag => tag.trim()).filter(Boolean))];
+              const response = await fetch(`/api/graph/${encodeURIComponent(node.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json", "x-agent-token": writeToken }, body: JSON.stringify({ tags }) });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.error ?? "Unable to save tags");
+              setTagText(null); requestBackendSync();
+            } catch (error) { setTagError((error as Error).message); }
+            finally { setSavingTags(false); }
+          }}>Save tags</Button></HStack>
+        </VStack>
 
         <section className="inspector__section" id="node-relationships">
           <div className="section-label">Linked nodes</div>

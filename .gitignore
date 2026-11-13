@@ -1,5 +1,6 @@
 node_modules
 .next
+.next-ui-check
 out
 dist
 coverage
@@ -18,3 +19,20 @@ network.png
 extension.png
 extension-mobile.png
 netron-poc.png
+
+data/architecture-drafts
+
+# Private hosted configuration and isolated audit builds
+deploy/runtime.env
+deploy/secrets/
+.next-production-audit/
+
+# SQLite databases & backups
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+backups/
+task-logs/
+
+# CRM check artifacts
+.next-crm-check/

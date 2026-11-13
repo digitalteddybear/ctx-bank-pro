@@ -43,24 +43,24 @@
 }
 
 [data-theme="dark"] {
-  --background: #171717;
-  --foreground: #e5e5e5;
-  --card: #262626;
-  --card-foreground: #e5e5e5;
-  --popover: #262626;
-  --popover-foreground: #e5e5e5;
+  --background: #121316;
+  --foreground: #f9fafb;
+  --card: #181a20;
+  --card-foreground: #f9fafb;
+  --popover: #181a20;
+  --popover-foreground: #f9fafb;
   --primary: #3b82f6;
   --primary-foreground: #ffffff;
-  --secondary: #262626;
+  --secondary: #21242d;
   --secondary-foreground: #e5e5e5;
-  --muted: #1f1f1f;
-  --muted-foreground: #a3a3a3;
-  --accent: #1e3a8a;
+  --muted: #16181f;
+  --muted-foreground: #9ca3af;
+  --accent: #1e293b;
   --accent-foreground: #bfdbfe;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #404040;
-  --input: #404040;
+  --border: #262b34;
+  --input: #262b34;
   --ring: #3b82f6;
   --chart-1: #60a5fa;
   --chart-2: #3b82f6;
@@ -68,13 +68,13 @@
   --chart-4: #1d4ed8;
   --chart-5: #1e40af;
   --radius: 3px;
-  --sidebar: #171717;
+  --sidebar: #0a0b0e;
   --sidebar-foreground: #e5e5e5;
   --sidebar-primary: #3b82f6;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e3a8a;
+  --sidebar-accent: #1e293b;
   --sidebar-accent-foreground: #bfdbfe;
-  --sidebar-border: #404040;
+  --sidebar-border: #262b34;
   --sidebar-ring: #3b82f6;
 }
 
@@ -144,11 +144,11 @@
   --cyan-brand: var(--primary);
   --navy-brand: var(--accent);
   --rail-width: 208px;
-  --topbar-height: 68px;
+  --topbar-height: 0px;
   --inspector-width: 370px;
   --content-max-width: 1500px;
-  --layout-gap: 14px;
-  --panel-radius: 12px;
+  --layout-gap: 20px;
+  --panel-radius: 8px;
   --control-height: 38px;
   --control-height-compact: 34px;
   --shadow-xl: none;
@@ -310,7 +310,7 @@ button {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 10px;
+  border-radius: 6px;
   color: #fff;
   cursor: pointer;
   display: inline-flex;
@@ -703,6 +703,11 @@ kbd {
   color: var(--primary-foreground);
 }
 
+/* Keep Astryx switches in AI Settings aligned with the app's blue primary action. */
+.ai-settings-workspace-wrap .astryx-switch[data-checked="checked"] {
+  background-color: var(--primary) !important;
+}
+
 .button--primary:hover {
   filter: brightness(1.08);
   transform: translateY(-1px);
@@ -767,18 +772,14 @@ kbd {
 }
 
 .workspace {
-  background: var(--background);
-  margin-left: var(--rail-width);
-  min-height: 100vh;
-  padding: calc(var(--topbar-height) + 32px) 28px 40px;
-  transition: margin-left 220ms var(--ease);
+  background: transparent !important;
+  min-height: auto;
+  box-sizing: border-box;
 }
 
 .dashboard {
   margin-right: 0;
 }
-
-.agents-view { max-width: none; }
 .agents-view .workspace-heading { max-width: var(--content-max-width); }
 .agents-banner,
 .agents-error { align-items: center; display: flex; gap: 10px; margin: 0 auto 14px; max-width: var(--content-max-width); padding: 12px 14px; }
@@ -2026,7 +2027,7 @@ kbd {
   align-items: center;
   background: color-mix(in srgb, var(--primary) 2.5%, transparent);
   border: 1px dashed color-mix(in srgb, var(--primary) 22%, transparent);
-  border-radius: 12px;
+  border-radius: var(--panel-radius);
   color: var(--cyan-brand);
   display: flex;
   flex-direction: column;
@@ -2085,6 +2086,7 @@ kbd {
 .document-inbox {
   margin: 0 auto 14px;
   max-width: 1500px;
+  width: 100%;
   padding: 18px;
 }
 
@@ -2169,12 +2171,14 @@ kbd {
 
 /* Sources */
 .sources-view {
-  max-width: none;
+  max-width: 1500px;
+  width: 100%;
 }
 
 .source-table {
   margin: 0 auto;
   max-width: 1500px;
+  width: 100%;
 }
 
 .source-table__head,
@@ -2620,7 +2624,7 @@ kbd {
 @media (max-width: 820px) {
   :root {
     --rail-width: 0px;
-    --topbar-height: 50px;
+    --topbar-height: 0px;
   }
 
   .app-shell:not(.is-sidebar-open) .rail {
@@ -2936,4 +2940,330 @@ html[data-theme="dark"] .workspace--network .neural-graph--orbital { background:
   .workspace--network:has(+ .inspector) .neural-graph--orbital { width: 100%; }
   .network-canvas-actions { flex-shrink: 0; }
   .network-view-toggle { flex-shrink: 0; white-space: nowrap; }
+}
+
+/* Architecture browser: shared control rhythm, flexible tree, fixed detail budget. */
+.architecture-view {
+  --architecture-detail-width: 480px;
+  --architecture-code-height: 560px;
+  --architecture-icon-size: 16px;
+  padding: 0 !important;
+  margin: 0 !important;
+  gap: 20px;
+  width: 100% !important;
+  max-width: 100% !important;
+  background: transparent !important;
+}
+.architecture-layout { min-width: 0; }
+.architecture-layout .astryx-layout-content { min-width: 0; }
+.architecture-detail { min-width: 0; overflow-wrap: anywhere; }
+.architecture-controls { min-width: 0; }
+.architecture-controls .button,
+.architecture-controls input { height: var(--control-height); min-height: var(--control-height); box-sizing: border-box; }
+
+/* Astryx SegmentedControl: Increased parent padding and widened options to prevent any clash with parent box */
+.architecture-view .astryx-segmented-control,
+.astryx-segmented-control,
+[role="radiogroup"] {
+  height: auto !important;
+  min-height: 38px !important;
+  padding: 4px !important;
+  gap: 4px !important;
+  border-radius: 8px !important;
+  box-sizing: border-box !important;
+  background: var(--color-neutral, rgba(255, 255, 255, 0.05)) !important;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1)) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+[data-theme="light"] .architecture-view .astryx-segmented-control,
+[data-theme="light"] .astryx-segmented-control,
+[data-theme="light"] [role="radiogroup"] {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.architecture-view .astryx-segmented-control-item,
+.astryx-segmented-control-item,
+[role="radiogroup"] > [role="radio"] {
+  height: 28px !important;
+  min-height: 28px !important;
+  min-width: 76px !important;
+  padding-inline: 14px !important;
+  border-radius: 6px !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  margin: 0 !important;
+  border: none !important;
+  transition: all 0.15s ease !important;
+  color: var(--foreground-muted, #9ca3af) !important;
+}
+
+.architecture-view .astryx-segmented-control-item[aria-checked="true"],
+.astryx-segmented-control-item[aria-checked="true"],
+[role="radiogroup"] > [role="radio"][aria-checked="true"] {
+  background: #21262d !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .architecture-view .astryx-segmented-control-item,
+[data-theme="light"] .astryx-segmented-control-item,
+[data-theme="light"] [role="radiogroup"] > [role="radio"] {
+  color: #656d76 !important;
+}
+
+[data-theme="light"] .architecture-view .astryx-segmented-control-item[aria-checked="true"],
+[data-theme="light"] .astryx-segmented-control-item[aria-checked="true"],
+[data-theme="light"] [role="radiogroup"] > [role="radio"][aria-checked="true"] {
+  background: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 1px rgba(0, 0, 0, 0.12) !important;
+  color: #1f2328 !important;
+}
+
+/* Compact sm variant for sidebars, cards, and toolbars */
+.astryx-segmented-control.sm,
+.astryx-segmented-control[data-size="sm"],
+[role="radiogroup"][data-size="sm"] {
+  min-height: 32px !important;
+  padding: 3px !important;
+  gap: 3px !important;
+  border-radius: 7px !important;
+}
+
+.astryx-segmented-control-item.sm,
+[role="radiogroup"][data-size="sm"] > [role="radio"] {
+  height: 24px !important;
+  min-height: 24px !important;
+  min-width: 58px !important;
+  padding-inline: 8px !important;
+  font-size: 12px !important;
+  border-radius: 5px !important;
+}
+
+.architecture-view svg { width: var(--architecture-icon-size); height: var(--architecture-icon-size); flex-shrink: 0; }
+.architecture-view tr[aria-selected="true"] { background: var(--color-background-blue); }
+.architecture-view tr:focus-visible { outline: var(--workspace-hairline) solid var(--primary); outline-offset: calc(-1 * var(--workspace-hairline)); }
+.architecture-breadcrumbs .button { max-width: 100%; }
+.architecture-breadcrumbs .button__content { overflow: hidden; text-overflow: ellipsis; }
+.architecture-detail .astryx-textarea { font-family: var(--font-sans); }
+
+/* GitHub-style Repository Controls & Action Buttons */
+.github-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--color-background-surface, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  color: var(--foreground, #ffffff);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+[data-theme="light"] .github-action-btn {
+  background: #f6f8fa;
+  border-color: rgba(31, 35, 40, 0.15);
+  color: #1f2328;
+}
+
+.github-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .github-action-btn:hover {
+  background: #f3f4f6;
+  border-color: rgba(31, 35, 40, 0.25);
+}
+
+.github-action-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--foreground-muted, #9ca3af);
+  margin-left: 2px;
+}
+
+[data-theme="light"] .github-action-count {
+  background: rgba(31, 35, 40, 0.08);
+  color: #656d76;
+}
+
+.github-branch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: var(--color-background-surface, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  color: var(--foreground, #ffffff);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+[data-theme="light"] .github-branch-btn {
+  background: #f6f8fa;
+  border-color: rgba(31, 35, 40, 0.15);
+  color: #1f2328;
+}
+
+.github-branch-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.github-code-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0a0a0c;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+[data-theme="light"] .github-code-cta {
+  background: #1f2328;
+  color: #ffffff;
+}
+
+.github-code-cta:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 1100px) {
+  .architecture-layout { display: flex; flex-direction: column; }
+  .architecture-layout > * { width: 100%; min-width: 0; max-width: 100%; }
+  .architecture-layout .astryx-layout-panel { width: 100%; border-inline-start: 0; border-top: var(--workspace-hairline) solid var(--border); }
+}
+@media (max-width: 1100px) {
+  .architecture-layout > * > :has(> .astryx-layout-panel) { flex-direction: column; }
+  .architecture-layout > * > :has(> .astryx-layout-panel) > * { width: 100%; min-width: 0; max-width: 100%; }
+}
+
+/* Shell SideNav panel background per theme */
+html[data-theme="dark"] .astryx-sidenav,
+html[data-theme="dark"] [data-astryx-component="SideNav"],
+html[data-theme="dark"] nav[class*="astryx-sidenav"] {
+  background-color: #0a0b0e !important;
+  border-right: 1px solid #262b34 !important;
+}
+
+html[data-theme="light"] .astryx-sidenav,
+html[data-theme="light"] [data-astryx-component="SideNav"],
+html[data-theme="light"] nav[class*="astryx-sidenav"] {
+  background-color: #fcfcfd !important;
+  border-right: 1px solid #e5e7eb !important;
+}
+
+/* Universal background across the entire main workspace per theme */
+html[data-theme="dark"] .astryx-app-shell main,
+html[data-theme="dark"] .app-shell main,
+html[data-theme="dark"] .main-scroll-container {
+  background-color: #121316 !important;
+  color: #f9fafb !important;
+}
+
+html[data-theme="light"] .astryx-app-shell main,
+html[data-theme="light"] .app-shell main,
+html[data-theme="light"] .main-scroll-container {
+  background-color: #f7f8fa !important;
+  color: #111827 !important;
+}
+
+/* Universal Section Width & Padding (Model: Agents tab) */
+.agents-view,
+.sources-view,
+.dashboard-workspace-wrap,
+.catalog-workspace-wrap,
+.architecture-workspace-wrap,
+.docs-workspace-wrap,
+.ai-settings-workspace-wrap {
+  max-width: 1500px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  width: 100% !important;
+  padding: 36px 40px 60px 40px !important;
+  box-sizing: border-box !important;
+  background: transparent !important;
+  transition: max-width 280ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 280ms cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+/* Smooth Sidebar Collapse & Fluid AppShell transitions */
+.app-shell,
+.astryx-app-shell,
+[data-astryx-component="SideNav"],
+.main-scroll-container {
+  transition: background-color 200ms ease, color 200ms ease, width 280ms cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+/* Sidebar collapse/toggle triggers */
+.sidebar-collapse-btn:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08)) !important;
+  color: var(--foreground) !important;
+}
+
+.sidebar-toggle-trigger:hover {
+  filter: brightness(1.08);
+  border-color: var(--primary) !important;
+}
+
+/* Company profile tag per theme */
+html[data-theme="light"] .company-profile-tag {
+  background: #f3f4f6 !important;
+  border: 1px solid #e5e7eb !important;
+  color: #111827 !important;
+}
+
+html[data-theme="dark"] .company-profile-tag {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #f9fafb !important;
+}
+
+/* Light mode panels, cards, and input contrast */
+html[data-theme="light"] .panel,
+html[data-theme="light"] [data-astryx-component="Card"] {
+  background-color: #ffffff;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+
+html[data-theme="light"] .metric-card {
+  background-color: #ffffff;
+  border-color: #e5e7eb;
+}
+
+html[data-theme="light"] .astryx-chat-composer {
+  background-color: #ffffff;
+  border-color: #e5e7eb;
+}
+
+html[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
 }

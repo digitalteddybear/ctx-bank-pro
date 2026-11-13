@@ -40,9 +40,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <head>
-        <Script id="ctxbankpro-theme-preference" strategy="beforeInteractive">
-          {`try { const preference = localStorage.getItem("ctxbankpro:theme-preference") || localStorage.getItem("ctxbankpro:application-theme") || "system"; const theme = preference === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : preference; if (theme === "light" || theme === "dark") { document.documentElement.dataset.theme = theme; document.documentElement.dataset.themePreference = preference; } } catch {}`}
-        </Script>
+        <script
+          id="ctxbankpro-theme-preference"
+          dangerouslySetInnerHTML={{
+            __html: `try { const preference = localStorage.getItem("ctxbankpro:theme-preference") || localStorage.getItem("ctxbankpro:application-theme") || "system"; const theme = preference === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : preference; if (theme === "light" || theme === "dark") { document.documentElement.dataset.theme = theme; document.documentElement.dataset.themePreference = preference; } } catch {}`,
+          }}
+        />
       </head>
       <body>
         <AstryxThemeProvider>{children}</AstryxThemeProvider>

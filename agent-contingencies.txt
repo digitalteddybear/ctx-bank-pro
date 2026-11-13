@@ -1,0 +1,18 @@
+CTX — Agent contingencies for LangSmith review
+
+Verified by code inspection; baseline offline tests passed.
+
+1. CampaignRegistry.start creates held enrollment records but no live dispatch work. UI campaign preparation is not evidence of SMTP delivery.
+2. The default worker starts inside Next.js. A web process exit stops reply monitoring; browser activity must not be required in production.
+3. The standalone runner defaults to FixtureModel unless --live is supplied. Production startup must explicitly select the configured API model.
+4. HubSpot mutation authorization still references a fixed pilot allowlist. Reconcile verified identities with explicitly selected campaign membership before scaling.
+5. RESOLVED: independent versioned Campaign/Demo templates persist in SQLite; Demo reloads server state and captures its template per run. Browser/live acceptance remains required.
+6. RESOLVED: preview and SMTP use one parser-based renderer. Five tests cover versioned persistence, escaped reply content, unsafe HTML and responsive CSS.
+7. Email SMTP acceptance does not prove inbox placement. Uncertain SMTP outcomes require reconciliation before retry, including after worker crashes.
+8. Existing transcript persistence is per run. Evaluate contact identity, cross-run continuity, unresolved questions and context retention after restart.
+9. CRM writes must follow confirmed delivery/inbound events, with durable retries and deduplication; test provider timeout after remote commit.
+10. Current local workspace authentication does not provide hosted browser sessions. Container deployment requires authenticated administrator access.
+11. RAG indexing assumes ../../RAG and a local Python virtualenv. Containers require explicit paths, dependencies and mounted corpus data.
+12. Required source fixtures still block live outreach reviews. ASP compliance monitoring must own source acquisition and report evidence status without affecting unrelated CTX operations.
+
+Scenarios: duplicate IMAP event; SMTP timeout after acceptance; HubSpot 429/5xx; token expiry; restart between draft and send; two workers claiming one message; same-name contacts; changed email identity; stale template edit; opt-out during queue wait; manual takeover; cancellation during inference; Cal booking already confirmed.

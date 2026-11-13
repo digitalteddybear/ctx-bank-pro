@@ -1,0 +1,11 @@
+import { loadLeadGraph } from "../src/lib/server/lead-corpus";
+import { hubspotContext } from "../src/lib/server/integrations/hubspot-lead-context";
+import { syncPhase1 } from "../src/lib/server/integrations/hubspot-context";
+if(process.env.HUBSPOT_WRITES_ENABLED!=="false") throw new Error("Set HUBSPOT_WRITES_ENABLED=false before read-only reconciliation");
+const graph=await loadLeadGraph();
+const canonical=new Map(graph.nodes.filter(n=>n.id.startsWith("lead-")).map(n=>[n.id.slice(5),n.sources[0]?.excerpt?.match(/^- \*\*Raw Email:\*\*\s*(\S+)/m)?.[1] ?? ""]));
+const result=await syncPhase1(hubspotContext(),canonical);
+await import("node:fs/promises").then(fs=>fs.writeFile("data/generated/hubspot/phase1-reconciliation.json",JSON.stringify({...result,finishedAt:new Date().toISOString()},null,2),{mode:0o600}));
+console.log(JSON.stringify({total:result.total,succeeded:result.results.filter(r=>r.status!=="failed").length,failed:result.results.filter(r=>r.status==="failed")},null,2));
+hubspotContext().store.close();
+if(result.results.some(r=>r.status==="failed")) process.exitCode=1;

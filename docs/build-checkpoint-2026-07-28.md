@@ -2,12 +2,12 @@
 
 ## Purpose
 
-This is the baseline handover for the World Creators CTXBANKPRO workspace. Treat the current build as a stable UI and interaction checkpoint. New work must extend these patterns rather than replace or bypass them.
+This is the baseline handover for the ASP Private Capital CTXBANKPRO workspace. Treat the current build as a stable UI and interaction checkpoint. New work must extend these patterns rather than replace or bypass them.
 
 ## Product position
 
 - **Product:** CTXBANKPRO, an agentic contextual engineering and agent-service platform.
-- **Client workspace:** World Creators.
+- **Client workspace:** ASP Private Capital.
 - **Primary surfaces:** Home Dashboard, Knowledge Bank, Documents & Sources, and CTXBANKPRO documentation.
 - **Brand assets:** `public/assets/light-ctx.svg` for dark surfaces, `public/assets/dark-ctx.svg` for light surfaces, and `public/assets/CTXBANK.svg` for the boot sequence.
 
@@ -49,7 +49,7 @@ This is the baseline handover for the World Creators CTXBANKPRO workspace. Treat
 
 ### Documentation and loading experience
 
-- Updated documentation to CTXBANKPRO for World Creators and moved the Astryx Outline pattern into the documentation-side navigation.
+- Updated documentation to CTXBANKPRO for ASP Private Capital and moved the Astryx Outline pattern into the documentation-side navigation.
 - Restored the original CTXBANKPRO loading logo and made it legible in light mode without using an external/nested SVG dependency.
 
 ## UI/UX non-negotiables

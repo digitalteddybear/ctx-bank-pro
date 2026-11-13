@@ -1,0 +1,10 @@
+import {test} from "node:test";
+import assert from "node:assert/strict";
+import {OutreachStore} from "../src/lib/server/outreach/store";
+import {OutreachEngine} from "../src/lib/server/outreach/engine";
+import {FixtureModel} from "../src/lib/server/outreach/models";
+import {relativeCallback,saveCallback,processDueCallbacks,callbackTask} from "../src/lib/server/outreach/callbacks";
+import {seedFixtureSources} from "../src/lib/server/outreach/sources";
+process.env.CTX_OUTREACH_DB_PATH=":memory:";
+test("calendar months clamp month-end; vague timing never gets a default",()=>{assert.equal(relativeCallback("call me in 1 month","2026-01-31T10:00:00Z"),"2026-02-28T10:00:00.000Z");assert.equal(relativeCallback("later in the year","2026-01-31T10:00:00Z"),null);});
+test("callback persists once and becomes a human review draft without sending",async()=>{const s=new OutreachStore(":memory:");seedFixtureSources(s);const e=new OutreachEngine(s,new FixtureModel());try{const r=e.create({id:"test",name:"Alex",email:"alex@example.test",permission:"granted",facts:[{text:"Synthetic",source:"synthetic"}]} );s.cancel(r.id);r.status="waiting_reply";r.transcript.push({direction:"inbound",text:"Call me in 6 months",eventId:"callback-request",sentAt:"2026-01-01T10:00:00Z"});const task=saveCallback(s,r,"2026-07-01T10:00:00Z");s.save(r);assert.equal(saveCallback(s,r,"2026-08-01T10:00:00Z").id,task.id);processDueCallbacks(s,Date.parse("2026-07-02T10:00:00Z"));for(let i=0;i<20&&await e.tick();i++);assert.equal(s.get(r.id).mode,"human");assert.equal(s.get(r.id).status,"awaiting_approval",s.get(r.id).issue);assert.equal(callbackTask(s,r.id)?.status,"draft_ready");assert.equal(Number(s.db.prepare("SELECT count(*) n FROM outbox").get()?.n),0);}finally{s.close();}});

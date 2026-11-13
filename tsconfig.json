@@ -33,7 +33,13 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next-ui-check/types/**/*.ts",
+    ".next-ui-check/dev/types/**/*.ts",
+    ".next-crm-check/types/**/*.ts",
+    ".next-crm-check/dev/types/**/*.ts",
+    ".next-production-audit/types/**/*.ts",
+    ".next-production-audit/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"
