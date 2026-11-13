@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { documentRepository } from "@/lib/server/document-repository";
 import { loadLeadGraph } from "@/lib/server/lead-corpus";
+import { workspaceSessionRole } from "@/lib/server/operator-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,10 @@ async function readSourceManifest(): Promise<SourceManifest | null> {
   };
 }
 
-export async function GET() {
+export async function GET(request:NextRequest) {
+  if(await workspaceSessionRole(request)==="guest"){
+    return NextResponse.json({dashboard:{available:true}},{headers:{"Cache-Control":"no-store"}});
+  }
   const [manifest, documents] = await Promise.all([
     readSourceManifest(),
     documentRepository.list(),

@@ -37,6 +37,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 The app uses server-side environment configuration. Create `.env.local` for the integrations you intend to use. Never commit credentials. Common settings include model-provider credentials, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `HUBSPOT_ACCESS_TOKEN`, and `CAL_API_KEY`; feature flags and authorization settings are deployment-specific. Keep live email dispatch and HubSpot writes disabled unless an operator is deliberately conducting an approved live test.
 
+CTX requires administrator or guest sign-in. A fresh local instance opens first-run administrator setup; the profile is stored in persistent configuration and survives code updates. See [profile access setup](docs/profile-access.md).
+
 ## Useful commands
 
 ```bash

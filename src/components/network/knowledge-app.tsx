@@ -54,6 +54,8 @@ import { Tooltip } from "@/components/dither-kit/tooltip";
 import { XAxis } from "@/components/dither-kit/x-axis";
 import { YAxis } from "@/components/dither-kit/y-axis";
 import { AppShell } from "@astryxdesign/core/AppShell";
+import { Card } from "@astryxdesign/core/Card";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
 const ArchitectureView=dynamic(()=>import("@/components/templates/architecture/architecture-view").then(module=>module.ArchitectureView));
 const AgentsView=dynamic(()=>import("./agents-view").then(module=>module.AgentsView));
 import { ShellSideNavigation } from "./shell-side-navigation";
@@ -704,6 +706,19 @@ export function KnowledgeApp() {
   const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
   const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
+  const [profileRole, setProfileRole] = useState<"administrator" | "guest">("guest");
+  const [profileReady, setProfileReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/session", { cache: "no-store" }).then(async response => {
+      if (!response.ok) throw new Error("Session unavailable");
+      const result: unknown = await response.json();
+      if (active && result && typeof result === "object" && "role" in result && result.role === "administrator") setProfileRole("administrator");
+      if (active) setProfileReady(true);
+    }).catch(() => { if (active) setProfileReady(true); });
+    return () => { active = false; };
+  }, []);
 
   const metrics = useMemo(() => calculateMetrics(snapshot), [snapshot]);
 
@@ -711,8 +726,23 @@ export function KnowledgeApp() {
     document.title = `${pageTitleByView[viewMode]} | CTX BankPro | ASP Private Capital`;
   }, [viewMode]);
 
+  useEffect(() => {
+    if (profileReady && profileRole === "guest" && viewMode !== "dashboard") {
+      setSelectedChatId(null);
+      setViewMode("dashboard");
+      window.history.replaceState({}, "", "/?view=dashboard");
+    }
+  }, [profileReady, profileRole, setSelectedChatId, setViewMode, viewMode]);
+
   const syncBackend = useCallback(async () => {
+    if (!profileReady) return;
     try {
+      if (profileRole === "guest") {
+        const response = await fetch("/api/status", { cache: "no-store" });
+        if (!response.ok) throw new Error("Backend sync failed");
+        setRuntime(await response.json() as RuntimeStatus);
+        return;
+      }
       const [graphResponse, statusResponse, documentsResponse] = await Promise.all([
         fetch("/api/graph", { cache: "no-store" }),
         fetch("/api/status", { cache: "no-store" }),
@@ -733,9 +763,10 @@ export function KnowledgeApp() {
     } catch {
       setSyncState("error");
     }
-  }, [setSnapshot, setSyncState]);
+  }, [profileReady, profileRole, setRuntime, setSnapshot, setSyncState]);
 
   useEffect(() => {
+    if (!profileReady) return;
     const initialSync = window.setTimeout(() => void syncBackend(), 0);
     const interval = window.setInterval(() => void syncBackend(), 4_000);
     const onFocus = () => void syncBackend();
@@ -747,7 +778,11 @@ export function KnowledgeApp() {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("ctx:backend-sync", onFocus);
     };
-  }, [syncBackend]);
+  }, [profileReady, syncBackend]);
+
+  useEffect(() => {
+    if (profileReady && profileRole === "administrator") hydrateChats();
+  }, [hydrateChats, profileReady, profileRole]);
 
   useEffect(() => {
     const start = Date.now();
@@ -793,6 +828,7 @@ export function KnowledgeApp() {
           height="fill"
           sideNav={
             <ShellSideNavigation
+              profileRole={profileRole}
               onOpenCompanyProfile={() => setCompanyProfileOpen(true)}
               onOpenThemeSettings={() => setThemeSettingsOpen(true)}
             />
@@ -840,7 +876,7 @@ export function KnowledgeApp() {
                 <kbd style={{ fontSize: "10px", opacity: 0.6, background: "var(--secondary)", padding: "2px 5px", borderRadius: "4px" }}>⌘B</kbd>
               </button>
             )}
-            {viewMode === "ai-chat" && <AIChatConversationView conversationId={selectedChatId} onMissionControl={() => { setSelectedChatId(null); setViewMode("dashboard"); window.history.pushState({}, "", "/?view=dashboard"); }} />}
+            {viewMode === "ai-chat" && profileRole === "administrator" && <AIChatConversationView conversationId={selectedChatId} onMissionControl={() => { setSelectedChatId(null); setViewMode("dashboard"); window.history.pushState({}, "", "/?view=dashboard"); }} />}
             {viewMode === "dashboard" && (
               <div
                 className="dashboard-workspace-wrap"
@@ -855,9 +891,19 @@ export function KnowledgeApp() {
                   boxSizing: "border-box",
                 }}
               >
-                <MissionControlView metrics={metrics} runtime={runtime} documents={documents} onComplete={syncBackend} />
-                <DashboardAlertRailView onComplete={syncBackend} />
-                <DashboardView metrics={metrics} runtime={runtime} documents={documents} onComplete={syncBackend} />
+                {profileRole === "administrator" ? <>
+                  <MissionControlView metrics={metrics} runtime={runtime} documents={documents} onComplete={syncBackend} />
+                  <DashboardAlertRailView onComplete={syncBackend} />
+                  <DashboardView metrics={metrics} runtime={runtime} documents={documents} onComplete={syncBackend} />
+                </> : <Card padding={4}><VStack gap={3}>
+                  <Heading level={1}>Mission Control</Heading>
+                  <Text color="secondary">You are signed in with guest access. This dashboard is read-only.</Text>
+                  <VStack gap={2}>
+                    <HStack gap={3} hAlign="between"><Text type="label">Dashboard</Text><Text color="secondary">Available</Text></HStack>
+                    <HStack gap={3} hAlign="between"><Text type="label">Agents</Text><Text color="secondary">Administrator access required</Text></HStack>
+                    <HStack gap={3} hAlign="between"><Text type="label">Knowledge Bank</Text><Text color="secondary">Administrator access required</Text></HStack>
+                  </VStack>
+                </VStack></Card>}
               </div>
             )}
             {viewMode === "network" && <NetworkView />}

@@ -32,6 +32,7 @@ deploy/secrets/
 *.sqlite-wal
 *.sqlite-shm
 backups/
+data/config/
 task-logs/
 
 # CRM check artifacts

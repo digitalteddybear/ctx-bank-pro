@@ -90,6 +90,7 @@ export default function ExtensionDocsPage() {
         height="fill"
         sideNav={
           <ShellSideNavigation
+              profileRole="administrator"
             onOpenCompanyProfile={() => setCompanyProfileOpen(true)}
             onOpenThemeSettings={() => setThemeSettingsOpen(true)}
           />

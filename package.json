@@ -26,6 +26,7 @@
     "outreach:sandbox": "node --import tsx scripts/sandbox-100-conversations.ts",
     "qa:ci": "npm run typecheck && npm run qa:auth && npm run qa:hubspot && npm run qa:outreach && npm run qa:orchestrator && python3 ../../RAG/evaluate_redteam.py --target perimeter",
     "auth:generate": "node --import tsx scripts/generate-auth-token.ts",
+    "auth:configure-admin": "node scripts/configure-admin-profile.mjs",
     "auth:mint": "node --import tsx scripts/generate-auth-token.ts --mint",
     "outreach:demo": "node --import tsx scripts/outreach-runner.ts",
     "outreach:worker": "node --import tsx scripts/outreach-runner.ts --worker",

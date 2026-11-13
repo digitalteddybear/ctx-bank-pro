@@ -18,10 +18,13 @@ import {
   Users,
   MessageSquareText,
   Trash2,
+  LogOut,
 } from "lucide-react";
 import { SideNav, SideNavItem, SideNavSection, SideNavHeading } from "@astryxdesign/core/SideNav";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Divider } from "@astryxdesign/core/Divider";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Token } from "@astryxdesign/core/Token";
 import { Button as AstryxButton } from "@astryxdesign/core/Button";
@@ -31,6 +34,7 @@ import { useGraphStore, type ViewMode } from "@/lib/graph/store";
 import { useAIChatStore } from "@/lib/ai-chat-store";
 
 interface ShellSideNavigationProps {
+  profileRole: "administrator" | "guest";
   onOpenCompanyProfile: () => void;
   onOpenThemeSettings: () => void;
 }
@@ -83,6 +87,7 @@ const navSections: Array<{
 ];
 
 export function ShellSideNavigation({
+  profileRole,
   onOpenCompanyProfile,
   onOpenThemeSettings,
 }: ShellSideNavigationProps) {
@@ -94,6 +99,11 @@ export function ShellSideNavigation({
   const removeConversation = useAIChatStore((state) => state.removeConversation);
   const [chatToDelete, setChatToDelete] = useState<{ id: string; title: string } | null>(null);
   const [isDeletingChat, setIsDeletingChat] = useState(false);
+  const [restrictedSection, setRestrictedSection] = useState<string | null>(null);
+  const isGuest = profileRole === "guest";
+  const visibleSections = isGuest
+    ? navSections.map(section => ({...section, items: section.items.filter(item => item.id === "dashboard" || item.id === "network" || item.id === "agents")})).filter(section => section.items.length > 0)
+    : navSections;
 
   const handleDeleteChat = async () => {
     if (!chatToDelete || isDeletingChat) return;
@@ -242,7 +252,7 @@ export function ShellSideNavigation({
         </SideNavSection>
       }
     >
-      {navSections.map((section) => (
+            {visibleSections.map((section) => (
         <div key={section.id}>
           <SideNavSection title={section.title}>
             {section.items.map((item) => (
@@ -250,6 +260,10 @@ export function ShellSideNavigation({
                 isSelected={typeof window !== "undefined" && window.location.pathname === "/extension" ? false : viewMode === item.id}
                 label={item.label}
                 onClick={() => {
+                  if (isGuest && (item.id === "network" || item.id === "agents")) {
+                    setRestrictedSection(item.label);
+                    return;
+                  }
                   setSelectedChatId(null);
                   setViewMode(item.id);
                   window.history.pushState({}, "", `/?view=${item.id}`);
@@ -257,7 +271,7 @@ export function ShellSideNavigation({
               />
             ))}
           </SideNavSection>
-          {section.id === "workspace" && conversations.length > 0 && (
+          {!isGuest && section.id === "workspace" && conversations.length > 0 && (
             <SideNavSection title="Chats">
               {conversations.map((chat) => (
                 <SideNavItem
@@ -311,8 +325,7 @@ export function ShellSideNavigation({
         </div>
       ))}
 
-      <Divider />
-
+      {!isGuest && <><Divider />
       <SideNavSection title="Validated Leads">
         {leads.length > 0 ? (
           leads.map((lead) => (
@@ -341,7 +354,21 @@ export function ShellSideNavigation({
           </div>
         )}
       </SideNavSection>
+      </>}
+      <Divider />
+      <AstryxButton label="Sign out" variant="ghost" size="sm" icon={<LogOut size={15}/>} onClick={() => {
+        void fetch("/api/session", {method:"DELETE"}).finally(() => window.location.assign("/login"));
+      }} />
     </SideNav>
+    <Dialog isOpen={restrictedSection !== null} onOpenChange={isOpen => {if (!isOpen) setRestrictedSection(null);}} purpose="info" width={440}>
+      <DialogHeader title={restrictedSection ?? "Access"} onOpenChange={isOpen => {if (!isOpen) setRestrictedSection(null);}} />
+      <VStack padding={4} gap={3}>
+        <Text>Administrative privileges required to access this section of CTX Bank</Text>
+        <HStack hAlign="end">
+        <AstryxButton label="Close" variant="secondary" size="sm" onClick={() => setRestrictedSection(null)} />
+        </HStack>
+      </VStack>
+    </Dialog>
     <Dialog
       isOpen={Boolean(chatToDelete)}
       onOpenChange={(isOpen) => {
