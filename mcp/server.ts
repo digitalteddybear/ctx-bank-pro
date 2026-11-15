@@ -13,7 +13,7 @@ import {
 } from "../src/lib/graph/types";
 
 const server = new McpServer({
-  name: "asp-invest-ctx-bank",
+  name: "ctx-bank-knowledge",
   version: "1.0.0",
 });
 
@@ -24,9 +24,9 @@ const result = (value: unknown) => ({
 server.registerTool(
   "search_knowledge",
   {
-    title: "Search ASP Private Capital knowledge",
+    title: "Search CTX Bank knowledge",
     description:
-      "Search active ASP Private Capital knowledge by title, description, topic, or node type.",
+      "Search active CTX Bank knowledge by title, description, topic, or node type.",
     inputSchema: {
       query: z.string().describe("Natural-language or exact-term query"),
       limit: z.number().int().min(1).max(50).default(12),

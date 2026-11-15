@@ -33,12 +33,12 @@ try {
   console.log("Found tools:", toolNames);
 
   const requiredTools = [
-    "get_ctx_bank_overview",
+    "get_ctx_platform_overview",
     "get_fresh_instance_orientation",
-    "get_agent_fleet_spec",
-    "get_oaas_model_guide",
-    "get_compliance_matrix",
-    "get_crm_zero_trust_matrix",
+    "get_agent_operating_system",
+    "get_zero_trust_architecture",
+    "get_governance_and_approval_matrix",
+    "get_oaas_framework",
     "query_ctx_architecture",
   ];
 
@@ -46,17 +46,17 @@ try {
     assert.ok(toolNames.includes(name), `Missing required tool: ${name}`);
   }
 
-  // Test tool 1: get_ctx_bank_overview
+  // Test tool 1: get_ctx_platform_overview
   const overview = parsed(
     await client.callTool({
-      name: "get_ctx_bank_overview",
+      name: "get_ctx_platform_overview",
       arguments: {},
     }),
   );
   assert.ok(overview.platform.includes("CTX"));
   assert.ok(overview.core_engine.includes("CTX Bank"));
   assert.ok(overview.ecosystem_reach.deployments.includes("12+ enterprise"));
-  console.log("✓ get_ctx_bank_overview validated (Pure CTX Bank, 12+ enterprise instances)");
+  console.log("✓ get_ctx_platform_overview validated (Universal CTX Bank manifest)");
 
   // Test tool 2: get_fresh_instance_orientation
   const orientation = parsed(
@@ -65,29 +65,29 @@ try {
       arguments: {},
     }),
   );
-  assert.ok(orientation.fresh_instance_checklist.length >= 5);
-  console.log("✓ get_fresh_instance_orientation validated (5 bootstrapping onboarding steps)");
+  assert.ok(orientation.bootstrapping_checklist.length >= 5);
+  console.log("✓ get_fresh_instance_orientation validated (5 onboarding phases)");
 
-  // Test tool 3: get_agent_fleet_spec for compliance_gate
-  const complianceAgent = parsed(
+  // Test tool 3: get_agent_operating_system for Policy Auditor
+  const auditor = parsed(
     await client.callTool({
-      name: "get_agent_fleet_spec",
-      arguments: { agentName: "compliance_gate" },
+      name: "get_agent_operating_system",
+      arguments: { archetype: "auditor" },
     }),
   );
-  assert.equal(complianceAgent.name, "Compliance Gate");
-  assert.ok(complianceAgent.responsibilities.some((r: string) => r.includes("SHA-256")));
-  console.log("✓ get_agent_fleet_spec validated (Compliance Gate archetype)");
+  assert.ok(auditor.archetype.includes("Policy & Compliance Auditor"));
+  assert.ok(auditor.responsibilities.some((r: string) => r.includes("SHA-256")));
+  console.log("✓ get_agent_operating_system validated (Universal Policy Auditor archetype)");
 
-  // Test tool 4: get_oaas_model_guide
-  const oaasGuide = parsed(
+  // Test tool 4: get_zero_trust_architecture
+  const zeroTrust = parsed(
     await client.callTool({
-      name: "get_oaas_model_guide",
+      name: "get_zero_trust_architecture",
       arguments: {},
     }),
   );
-  assert.ok(oaasGuide.operating_principles.length >= 4);
-  console.log("✓ get_oaas_model_guide validated (Outcome-as-a-Service framework)");
+  assert.ok(zeroTrust.core_principles.length >= 5);
+  console.log("✓ get_zero_trust_architecture validated (Zero-Trust Gateway)");
 
   // Test tool 5: query_ctx_architecture
   const arch = parsed(
@@ -105,39 +105,45 @@ try {
   console.log("Found resources:", resourceUris);
 
   assert.ok(resourceUris.includes("ctx://bank/platform-manifest"));
-  assert.ok(resourceUris.includes("ctx://bank/fresh-instance-guide"));
+  assert.ok(resourceUris.includes("ctx://bank/fresh-instance-orientation"));
+  assert.ok(resourceUris.includes("ctx://bank/agent-os-archetypes"));
+  assert.ok(resourceUris.includes("ctx://bank/zero-trust-gateway"));
+  assert.ok(resourceUris.includes("ctx://bank/governance-hash-lock"));
   assert.ok(resourceUris.includes("ctx://bank/oaas-playbook"));
 
-  const resourceData = await client.readResource({ uri: "ctx://bank/fresh-instance-guide" });
+  const resourceData = await client.readResource({ uri: "ctx://bank/fresh-instance-orientation" });
   assert.ok(resourceData.contents.length > 0);
   const content = resourceData.contents[0];
   const rawText = "text" in content ? (content.text as string) : "{}";
   const parsedResource = JSON.parse(rawText);
   assert.equal(parsedResource.title, "CTX Bank Fresh-Instance Bootstrapping Guide for Autonomous Agents");
-  console.log("✓ Resource read validated (ctx://bank/fresh-instance-guide)");
+  console.log("✓ Resource read validated (ctx://bank/fresh-instance-orientation)");
 
   console.log("\n3. Verifying MCP Prompts...");
   const promptList = await client.listPrompts();
   const promptNames = promptList.prompts.map((p) => p.name);
   console.log("Found prompts:", promptNames);
 
-  assert.ok(promptNames.includes("ctx_agent_bootstrap_prompt"));
-  assert.ok(promptNames.includes("verify_fresh_instance_readiness"));
+  assert.ok(promptNames.includes("bootstrap_fresh_agent"));
+  assert.ok(promptNames.includes("audit_proposed_action"));
+  assert.ok(promptNames.includes("assess_instance_launch_readiness"));
 
   const generatedPrompt = await client.getPrompt({
-    name: "ctx_agent_bootstrap_prompt",
+    name: "bootstrap_fresh_agent",
     arguments: {
-      agentRole: "Outreach Drafter",
-      tenantOrganizationName: "Apex Global Partners",
+      agentArchetype: "Action Drafter",
+      tenantOrganizationName: "Apex Logistics Group",
+      operationalDomain: "Supply Chain & Freight Billing",
     },
   });
   assert.ok(generatedPrompt.messages.length > 0);
   const promptText = (generatedPrompt.messages[0].content as any).text;
-  assert.ok(promptText.includes("Apex Global Partners"));
+  assert.ok(promptText.includes("Apex Logistics Group"));
+  assert.ok(promptText.includes("Supply Chain & Freight Billing"));
   assert.ok(promptText.includes("TRUTH BOUNDARY"));
-  console.log("✓ Prompt execution validated (ctx_agent_bootstrap_prompt with client parameterization)");
+  console.log("✓ Prompt execution validated (bootstrap_fresh_agent with universal tenant parameterization)");
 
-  console.log("\n✅ ALL CTX BANK MCP SUITE CHECKS PASSED SUCCESSFULLY!");
+  console.log("\n✅ ALL UNIVERSAL CTX BANK MCP CHECKS PASSED SUCCESSFULLY!");
 } finally {
   await transport.close();
 }
