@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "ctx-bank-knowledge": {
+      "command": "node",
+      "args": [
+        "--import",
+        "tsx",
+        "/Users/ziggy/local-agents/ctx-engineering/App/knowledge-network/mcp/ctx-bank-knowledge-server.ts"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
