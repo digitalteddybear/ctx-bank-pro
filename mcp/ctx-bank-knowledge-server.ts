@@ -14,100 +14,148 @@ const result = (value: unknown) => ({
 });
 
 // ============================================================================
-// DOMAIN DATA & KNOWLEDGE REPOSITORIES
+// CTX & CTX BANK PLATFORM REPOSITORY (CLIENT-AGNOSTIC / FRESH-STATE READY)
 // ============================================================================
 
-const CTX_BANK_OVERVIEW = {
-  name: "CTX Bank (Context Engineering & Autonomous Operations Platform)",
-  version: "1.0.0 Pro",
-  mission:
-    "Bridge the critical enterprise gap between unconstrained, probabilistic LLM agents and regulated high-stakes production workflows through deterministic state engines, evidence-cited truth boundaries, and Outcome-as-a-Service delivery.",
-  reach_and_impact: {
-    enterprise_deployments: 12,
-    sectors: ["Private Capital", "Institutional Wealth Management", "High-Value B2B Financial Syndicates"],
-    role: "Core operational backbone powering autonomous deal qualification, compliance-gated LP outreach, and zero-trust CRM synchronization.",
-    operating_model: "Outcome-as-a-Service (OaaS) — pricing and performance indexed against verified LP meetings and qualified deal outcomes rather than software seat licenses.",
+const CTX_PLATFORM_MANIFEST = {
+  platform: "CTX (Context Engineering & Autonomous Operations Platform)",
+  core_engine: "CTX Bank (The Sovereign Context Bank & Agent Operating System)",
+  version: "1.0.0 Pro Enterprise",
+  purpose:
+    "Provide a deterministic, evidence-grounded runtime and sovereign context repository that bridges the gap between probabilistic LLMs and high-consequence enterprise operations.",
+  ecosystem_reach: {
+    deployments: "Powering dedicated autonomous agent systems across 12+ enterprise partner instances",
+    sectors: ["Private Capital & Asset Management", "Institutional Wealth Syndicates", "Regulated B2B Financial Services"],
+    business_model: "Outcome-as-a-Service (OaaS) — client value and operational performance are measured and monetized by verified business outcomes (e.g., qualified investor meetings, compliance-cleared transactions) rather than software seat licenses.",
   },
-  core_differentiators: [
+  fundamental_axioms: [
     {
-      principle: "Evidence-Cited Truth Boundary",
-      description: "Agents are strictly bound to an ingested, verifiable knowledge graph and RAG perimeter. If evidence does not exist in the verified dossier, claims cannot be generated or dispatched.",
+      axiom: "Evidence-Cited Truth Boundary",
+      rule: "Agents are strictly bounded to the verified knowledge corpus in CTX Bank. An agent must never invent, extrapolate, or assert claims lacking verifiable source provenance.",
     },
     {
-      principle: "Deterministic Orchestration & Compliance Gating",
-      description: "State transitions are governed by deterministic code rather than LLM whims. Outbound drafts require cryptographic hash-matched compliance approvals.",
+      axiom: "Deterministic State Machine Execution",
+      rule: "All consequential state transitions (outreach, dispatch, state updates) are governed by deterministic code and state machines. The LLM is an intelligence generator, not the workflow controller.",
     },
     {
-      principle: "Zero-Trust Integration Security",
-      description: "No LLM, agent context, or prompt ever receives CRM or API credentials. All updates pass through a deterministic, fail-closed gateway with append-only SQLite audit logs.",
+      axiom: "Immutable Compliance & Hash-Locked Approval",
+      rule: "Every outbound communication requires a passing compliance review. Human approvals are cryptographically bound to the SHA-256 hash of the exact draft; any modification immediately revokes approval.",
     },
     {
-      principle: "Resilient Persistence Engine",
-      description: "WAL-mode SQLite singletons anchored to globalThis survive Next.js Fast Refresh (HMR) and container restarts without connection leakage or data corruption.",
+      axiom: "Zero-Trust External Gateways",
+      rule: "No LLM, agent prompt, or background task ever receives raw external credentials (CRM keys, SMTP passwords, API tokens). All operations pass through fail-closed, allowlist-bounded micro-gateways with append-only SQLite audit trails.",
+    },
+    {
+      axiom: "Resilient Storage & Isolation",
+      rule: "Each client instance maintains isolated SQLite WAL singletons anchored to globalThis, preventing Fast-Refresh / HMR connection leaks, lock contention, or cross-tenant data bleed.",
+    },
+  ],
+};
+
+const FRESH_INSTANCE_ORIENTATION = {
+  title: "CTX Bank Fresh-Instance Bootstrapping Guide for Autonomous Agents",
+  intent:
+    "Provided alongside fresh-state deployments so newly initialized agents immediately recognize their role, operational boundaries, and system dependencies upon loading.",
+  agent_mental_model: [
+    "You are operating inside a sovereign CTX instance powered by CTX Bank.",
+    "Upon initial wake-up in a fresh deployment, no domain assumptions should be made. You must discover the client's ingested knowledge corpus, brand guidelines, and configured integrations dynamically.",
+    "You do not have direct access to send emails, update CRMs, or execute transactions. You propose structured actions to the CTX workflow engine.",
+    "Your objective is to deliver guaranteed business outcomes under an Outcome-as-a-Service (OaaS) contract with zero compliance infractions.",
+  ],
+  fresh_instance_checklist: [
+    {
+      step: 1,
+      phase: "Knowledge Ingestion & Corpus Discovery",
+      action: "Verify that canonical client documents, dossiers, and product information have been ingested into CTX Bank's graph and RAG perimeters.",
+      status_check: "Query knowledge nodes and document extraction status via CTX Bank repository.",
+    },
+    {
+      step: 2,
+      phase: "Integration & Gateway Verification",
+      action: "Confirm fail-closed integration posture. Ensure CRM write switches (e.g. HUBSPOT_WRITES_ENABLED) are intentionally configured (dry-run vs. live).",
+      status_check: "Inspect audit log tables (e.g. hubspot_audit.sqlite) for clean initialization.",
+    },
+    {
+      step: 3,
+      phase: "Deliverability Hygiene Check",
+      action: "Verify sending domain DNS authentication (SPF, DKIM, DMARC) through the Deliverability Daemon before attempting live communication.",
+      status_check: "Check domain alignment and warm-up rate limits.",
+    },
+    {
+      step: 4,
+      phase: "Compliance Baseline Lock",
+      action: "Ensure client-specific regulatory boundaries (e.g., commercial introducer vs. licensed advice) and required disclosure footers are recorded.",
+      status_check: "Validate that draft review rejects any communication lacking evidence citations or mandatory footers.",
+    },
+    {
+      step: 5,
+      phase: "Sandbox Simulation Run",
+      action: "Execute initial campaigns in simulated sandbox mode (synthetic outbox, mock CRM updates) to verify conversation trajectories end-to-end before enabling production dispatch.",
+      status_check: "Review sandbox audit events and approval workflows in Mission Control.",
     },
   ],
 };
 
 const AGENT_FLEET_SPEC = {
-  architecture: "5-Specialized-Agent Fleet with Deterministic State Machine",
-  orchestrator_principle:
-    "The deterministic workflow engine controls execution, not the language model. Models cannot send mail, alter CRM records, or bypass review gates.",
+  architecture: "5-Specialized-Agent Fleet Architecture",
+  description:
+    "CTX Bank organizes autonomous operations into five decoupled, specialized agent archetypes governed by a central state orchestrator.",
   agents: [
     {
       name: "Prospect Intelligence Agent",
-      role: "Evidence synthesis and dossier briefing",
+      archetype: "evidence_synthesis",
       responsibilities: [
-        "Ingests verified RAG dossiers, company filings, and historical engagement data.",
-        "Produces evidence-cited executive briefs for outbound targeting.",
+        "Ingests verified RAG dossiers, company filings, and historical engagement data from CTX Bank.",
+        "Synthesizes evidence-cited briefs detailing prospect context, key drivers, and relevance.",
         "Strictly flags missing evidence and refuses to extrapolate unverified claims.",
       ],
-      input_boundary: "Canonical RAG dossiers and knowledge graph nodes",
+      input_boundary: "Canonical RAG dossiers and CTX Bank knowledge nodes",
       output_artifact: "Prospect Intelligence Brief with explicit citation hashes",
     },
     {
       name: "Outreach Drafting Agent",
-      role: "Context-aware communication drafting",
+      archetype: "communication_generation",
       responsibilities: [
-        "Drafts bespoke initial reactivations, sequence follow-ups, and contextual replies.",
-        "Strictly adheres to brand voice, sender credentials (e.g. dylan@aspinvest.co.uk), and approved product positioning.",
-        "Never includes booking links in initial unsolicited outreach; links are only dispatched upon explicit inbound prospect interest.",
+        "Drafts bespoke initial reactivations, sequence follow-ups, and contextual responses.",
+        "Adheres strictly to the tenant's brand voice, designated sender profile, and approved product claims.",
+        "Strict Rule: NEVER includes booking or calendar links in initial unsolicited outreach. Booking links are strictly restricted to interested inbound follow-ups.",
       ],
-      input_boundary: "Intelligence brief + approved product facts + conversation history",
+      input_boundary: "Intelligence brief + approved product facts + conversation thread",
       output_artifact: "Deterministic draft proposal with SHA-256 content hash",
     },
     {
       name: "Conversation Classifier",
-      role: "Inbound message intent triage & state routing",
+      archetype: "intent_triage",
       responsibilities: [
-        "Classifies prospect inbound replies into deterministic intents: Interested, Booking Request, Information Query, Opt-Out / Unsubscribe, Complaint, or Out of Scope.",
+        "Evaluates inbound prospect replies and assigns deterministic intents: Interested, Booking Request, Information Query, Opt-Out / Unsubscribe, Complaint, or Out of Scope.",
         "Immediately triggers automated suppression upon detecting opt-out sentiment.",
-        "Routes booking confirmations to the signed Cal.com webhook listener.",
+        "Routes booking intent to signed scheduling webhooks (e.g. Cal.com) with unique, secure links.",
       ],
-      input_boundary: "Inbound email / message thread",
-      output_artifact: "Typed intent classification event + recommended state transition",
+      input_boundary: "Inbound communication thread",
+      output_artifact: "Typed intent classification event + recommended state machine transition",
     },
     {
       name: "Deliverability Daemon",
-      role: "Technical deliverability & hygiene gatekeeper",
+      archetype: "technical_hygiene_gate",
       responsibilities: [
-        "Validates DNS hygiene (SPF, DKIM, DMARC alignment) for sending domains (e.g. aspinvest.co.uk).",
-        "Enforces recipient mailbox validation, syntax verification, and quarantine policies.",
-        "Controls throttling, send cadences, and injects signed HMAC open-tracking pixels for engagement analytics.",
-        "Monitors bounce and spam complaint rates, halting campaigns if safety thresholds are breached.",
+        "Verifies sending domain DNS records (SPF, DKIM, DMARC alignment).",
+        "Enforces recipient mailbox validation, syntax checking, and quarantine policies.",
+        "Manages sending rate limits, throttling schedules, and injects signed HMAC open-tracking tokens.",
+        "Halts campaigns automatically if bounce or complaint rates exceed safety thresholds.",
       ],
-      input_boundary: "Outbound queue and domain DNS health records",
+      input_boundary: "Outbound message queue and domain DNS health metrics",
       output_artifact: "Deliverability clearance token or quarantine classification",
     },
     {
       name: "Compliance Gate",
-      role: "Independent regulatory verification & approval lock",
+      archetype: "regulatory_verification",
       responsibilities: [
-        "Audits the exact text of every outbound draft against regulatory introductions/liaison boundaries.",
-        "Verifies that no regulated financial advice or unwarranted return guarantees are communicated.",
-        "Binds human operator approvals to the exact SHA-256 hash of the draft; any post-approval edit immediately revokes approval.",
-        "Enforces mandatory regulatory footers and sender identity disclosures.",
+        "Audits every outbound message draft against jurisdiction-specific regulatory boundaries (e.g., commercial introducer vs. regulated investment advice).",
+        "Confirms that no unauthorized performance promises or unverified claims are present.",
+        "Binds human operator approvals to the exact SHA-256 hash of the draft; any post-approval edit revokes approval immediately.",
+        "Enforces mandatory regulatory disclosures, opt-out notices, and sender identity footers.",
       ],
-      input_boundary: "Final message draft + target jurisdiction rules",
+      input_boundary: "Final message draft + regulatory perimeter rules",
       output_artifact: "Signed compliance approval certificate (pass/quarantine/reject)",
     },
   ],
@@ -116,101 +164,98 @@ const AGENT_FLEET_SPEC = {
 const OAAS_MODEL_GUIDE = {
   title: "Outcome-as-a-Service (OaaS) Operating Blueprint",
   summary:
-    "How CTX Bank enables 12 partner enterprises to operate autonomous agent systems monetized on verified business outcomes rather than software subscriptions.",
-  key_pillars: [
+    "CTX Bank is architected as an Outcome-as-a-Service system. Rather than licensing software seats, deployments are designed to autonomously deliver, track, and guarantee high-value business outcomes.",
+  operating_principles: [
     {
-      pillar: "Outcome-Indexed Economics",
-      details:
-        "Clients do not pay for user seats or prompt token counts. Contracts are benchmarked against tangible outcomes: verified institutional meetings booked, qualified LP pipeline generated, and compliance-cleared dossier deliveries.",
+      principle: "Outcome-Indexed Commercials",
+      description:
+        "The client value metric is verified business outcomes: qualified LP meetings booked, institutional pipeline generated, compliance-audited dossiers delivered.",
     },
     {
-      pillar: "Dual-Mode Execution (Sandbox vs. Authenticated Operations)",
-      details:
-        "Every workflow can be run in high-fidelity sandbox simulation (synthetic runs with complete RAG dossiers and mock outboxes) to validate conversion and compliance before switching to authenticated live dispatch.",
+      principle: "Autonomous Execution with Human-in-the-Loop Safeguards",
+      description:
+        "The agent fleet autonomously handles 95% of intelligence gathering, drafting, classification, and deliverability monitoring. Consequential external actions (sending emails, modifying records) remain governed by explicit human approval or pre-cleared compliance policies.",
     },
     {
-      pillar: "Human-in-the-Loop Cockpit",
-      details:
-        "Operators use Mission Control and Agent OS Tracker to govern fleets of 100+ simultaneous conversations. The machine handles 95% of intelligence gathering and drafting, while human operators retain final authorization on consequential actions.",
+      principle: "Dual-Mode Sandboxing",
+      description:
+        "Every campaign can run in sandbox simulation mode (retaining real dossiers but routing to synthetic outboxes and mock CRM audit events) before toggling to production delivery.",
     },
     {
-      pillar: "Multi-Tenant Enterprise Isolation",
-      details:
-        "Each partner enterprise maintains isolated SQLite WAL databases, dedicated RAG indexes, custom CRM field mappings, and independent deliverability infrastructure, preventing cross-tenant data contamination.",
-    },
-  ],
-};
-
-const COMPLIANCE_AND_REGULATORY_MATRIX = {
-  regulatory_framework: "FCA Introducer & Commercial Liaison Perimeter",
-  core_mandates: [
-    {
-      rule: "Introducer vs. Advice Boundary",
-      requirement:
-        "Agents must strictly act as commercial introducers/information liaisons. They must NEVER provide financial advice, make personalized investment recommendations, or promise specific returns.",
-    },
-    {
-      rule: "Cryptographic Hash-Bound Approval",
-      requirement:
-        "Operator approvals are bound to the SHA-256 hash of the message content. Modifying even a single character invalidates the approval and requires re-verification by the Compliance Gate.",
-    },
-    {
-      rule: "Deterministic Suppression",
-      requirement:
-        "Any opt-out, 'remove me', or negative sentiment trigger immediately suppresses the contact across all workflows and syncs a suppression flag to the CRM.",
-    },
-    {
-      rule: "Explicit Provenance & Evidence Citation",
-      requirement:
-        "Every claim made about an investment product, yield, asset class, or track record must reference a verified source document chunk in the canonical knowledge repository.",
+      principle: "Sovereign Multi-Tenant Isolation",
+      description:
+        "Each client instance operates with isolated database files, independent vector indices, dedicated sender domains, and private audit trails, ensuring zero cross-tenant data contamination.",
     },
   ],
 };
 
-const ZERO_TRUST_CRM_MATRIX = {
+const COMPLIANCE_GOVERNANCE_MATRIX = {
+  framework: "CTX Sovereign Regulatory & Governance Engine",
+  rules: [
+    {
+      rule: "Introducer & Liaison Perimeter",
+      requirement:
+        "Agents must strictly maintain the role of an informational liaison or commercial introducer. Under no circumstances may an agent provide personalized investment advice, financial planning, or guaranteed return projections.",
+    },
+    {
+      rule: "SHA-256 Hash Lock Protocol",
+      requirement:
+        "Operator approvals are mathematically bound to the SHA-256 digest of the outbound message text. If an operator or agent changes a single character, the approval is voided and must be re-evaluated.",
+    },
+    {
+      rule: "Immediate Opt-Out Suppression",
+      requirement:
+        "Any inbound communication expressing a desire to opt out or unsubscribe must immediately trigger permanent suppression across all campaigns and sync to the CRM.",
+    },
+    {
+      rule: "Verifiable Citation Requirement",
+      requirement:
+        "All factual statements regarding track records, fund metrics, product features, or personnel must be cited directly to an ingested document node in CTX Bank.",
+    },
+  ],
+};
+
+const ZERO_TRUST_INTEGRATION_RULES = {
   architecture: "Zero-Trust Fail-Closed Gateway Pattern",
   principles: [
-    "No AI agent or LLM prompt ever receives or has access to HubSpot API keys, OAuth refresh tokens, or CRM admin credentials.",
-    "Updates are initiated solely via structured workflow events emitted by the deterministic engine.",
-    "Fixed allowlists restrict CRM writes to designated pilot cohorts (e.g. 25-lead pilot).",
-    "Append-only SQLite audit log (hubspot_audit.sqlite) records every payload, timestamp, and status code with zero secret leakage.",
-    "Fail-closed kill-switch: if HUBSPOT_WRITES_ENABLED !== 'true', all mutations are safely simulated and logged as dry-run audit records.",
-    "Cal.com calendar integration uses HMAC-SHA256 signature verification on inbound webhooks to prevent spoofed meeting confirmations.",
+    "No agent, LLM prompt, or background task ever receives raw external credentials (CRM API tokens, calendar secrets, SMTP credentials).",
+    "CRM mutations are initiated exclusively via structured events emitted by the deterministic workflow engine.",
+    "Strict allowlists limit CRM updates to pre-authorized cohort IDs during onboarding and pilot phases.",
+    "Append-only SQLite audit logs record every payload, timestamp, and response code with zero credential leakage.",
+    "Fail-closed default: if write switches are not explicitly enabled ('true'), mutations are safely simulated and recorded as dry-run audit entries.",
+    "Signed Webhooks: Scheduling events (e.g. Cal.com) are validated using HMAC-SHA256 signatures to prevent spoofed appointment confirmations.",
   ],
   permitted_operations: [
-    "PATCH /crm/v3/objects/contacts/:id — Only strict allowlisted custom properties (e.g. ctx_email_opened, outreach_stage).",
-    "POST /crm/v3/objects/notes — Compliance-audited interaction summaries.",
-    "POST /crm/v3/objects/emails — Logging dispatched messages with tracking metadata.",
+    "PATCH /crm/v3/objects/contacts/:id — Restricted strictly to allowlisted properties (e.g. outreach stage, email opened).",
+    "POST /crm/v3/objects/notes — Audited interaction summaries.",
+    "POST /crm/v3/objects/emails — Dispatched message logging with engagement tokens.",
   ],
 };
 
 const ARCHITECTURE_DEEP_DIVES: Record<string, string> = {
   "runtime-engine": `
-### CTX Runtime Engine
-The CTX runtime engine is a deterministic workflow runner implemented in TypeScript with Node.js and Next.js App Router.
-- State machines handle transitions across: queued -> generating_brief -> drafting -> compliance_review -> awaiting_approval -> approved -> dispatched -> tracking_reply -> booking_completed.
-- Retries use exponential backoff with lease locks to prevent split-brain execution across multiple worker threads.
-- Event streams (Server-Sent Events) deliver real-time progress updates to the Mission Control dashboard.
+### CTX Deterministic Runtime Engine
+- State machines govern transitions across: queued -> generating_brief -> drafting -> compliance_review -> awaiting_approval -> approved -> dispatched -> tracking_reply -> booking_completed.
+- Bounded retries, exponential backoff, and lease-lock scheduling prevent race conditions and duplicate operations.
+- Real-time Server-Sent Events (SSE) stream operational progress directly to operator dashboards.
   `,
   "sqlite-wal-singletons": `
-### SQLite WAL Singletons & HMR Resilience
-Next.js Hot Module Replacement (HMR) re-evaluates modules on code changes, which can leak open SQLite file descriptors.
-- CTX Bank attaches all SQLite database singletons to 'globalThis' (e.g. globalThis.__ctxOutreachStore, globalThis.__ctxHubSpotGateway).
+### SQLite WAL Singletons & Fast-Refresh Resilience
+- In Next.js environments, Hot Module Replacement (HMR) re-evaluates modules, which can leak open SQLite file descriptors.
+- CTX Bank binds all SQLite database instances to 'globalThis' (e.g. globalThis.__ctxOutreachStore, globalThis.__ctxHubSpotGateway).
 - Pragmas configured: 'PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;'.
-- Result: 100% immune to dev server state-locks and connection exhaustion.
+- Guarantees 100% immunity to dev-server state locks and connection exhaustion in persistent production environments.
   `,
   "rag-perimeter": `
-### Knowledge Graph & RAG Perimeter
-The knowledge network incorporates a multi-hop typed relationship graph (entities, concepts, documents, evidence).
-- Document ingestion extracts text, splits chunks, generates semantic embeddings, and creates derived graph nodes with 'authority' and 'confidence' ratings.
-- Search traverses both direct vector cosine similarity and 1-3 hop neighborhood graph relationships.
-- Guarantees that agent-generated drafts cite concrete source chunk IDs.
+### CTX Bank Knowledge Graph & RAG Perimeter
+- Combines vector embeddings with a multi-hop typed relationship graph (nodes: concepts, entities, sources, evidence).
+- Document ingestion extracts text, builds chunks, tags source authority, and computes cryptographic source hashes.
+- Search traverses both cosine similarity and 1-3 hop neighborhood relationships to ensure high-precision contextual grounding.
   `,
   "deliverability-daemon": `
-### Deliverability Daemon & Tracking
-The deliverability subsystem ensures high-reputation inbox placement:
-- Proactive validation of SPF, DKIM, and DMARC records on sending domains.
-- Bounce-rate threshold monitoring with automated circuit breakers.
+### Deliverability Daemon & Engagement Tracking
+- Proactive validation of SPF, DKIM, and DMARC DNS health for sending domains.
+- Recipient email address syntax verification and bounce-risk scoring.
 - Injects zero-pixel transparent GIF tracking tokens with HMAC signatures (e.g. /api/track/open/[token]) to verify email reads without exposing recipient email addresses.
   `,
 };
@@ -224,11 +269,23 @@ server.registerTool(
   {
     title: "Get CTX Bank Platform Overview",
     description:
-      "Retrieve the high-level architecture, mission, ecosystem impact, and Outcome-as-a-Service (OaaS) reach of CTX Bank.",
+      "Retrieve the core purpose, mission, fundamental axioms, and Outcome-as-a-Service (OaaS) reach of CTX and CTX Bank across 12+ enterprise deployments.",
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-  async () => result(CTX_BANK_OVERVIEW),
+  async () => result(CTX_PLATFORM_MANIFEST),
+);
+
+server.registerTool(
+  "get_fresh_instance_orientation",
+  {
+    title: "Get Fresh-Instance Bootstrapping Orientation",
+    description:
+      "Essential guide for an agent waking up in a fresh-state CTX deployment. Outlines mental models, onboarding phases, and operational prerequisites.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async () => result(FRESH_INSTANCE_ORIENTATION),
 );
 
 server.registerTool(
@@ -236,7 +293,7 @@ server.registerTool(
   {
     title: "Get 5-Agent Fleet Specifications",
     description:
-      "Retrieve detailed role specifications, input/output boundaries, and execution rules for the 5 CTX Bank specialized agents.",
+      "Inspect role definitions, responsibilities, input/output perimeters, and execution constraints for the 5 CTX Bank specialized agent archetypes.",
     inputSchema: {
       agentName: z
         .enum([
@@ -248,7 +305,7 @@ server.registerTool(
           "compliance_gate",
         ])
         .default("all")
-        .describe("Specific agent to inspect, or 'all' for the entire fleet"),
+        .describe("Specific agent archetype to inspect, or 'all' for the full fleet"),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -263,7 +320,7 @@ server.registerTool(
     };
     const targetTitle = keyMap[agentName];
     const match = AGENT_FLEET_SPEC.agents.find((a) => a.name === targetTitle);
-    return result(match ?? { error: "Agent not found", requested: agentName });
+    return result(match ?? { error: "Agent archetype not found", requested: agentName });
   },
 );
 
@@ -272,7 +329,7 @@ server.registerTool(
   {
     title: "Get Outcome-as-a-Service (OaaS) Operating Guide",
     description:
-      "Retrieve the business model, commercial pricing strategy, and multi-tenant operational guidelines for CTX Bank's OaaS framework.",
+      "Retrieve the commercial model, outcome benchmarking, dual-mode sandboxing, and sovereign multi-tenant isolation guidelines of CTX Bank.",
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -282,33 +339,33 @@ server.registerTool(
 server.registerTool(
   "get_compliance_matrix",
   {
-    title: "Get Regulatory & Compliance Rules",
+    title: "Get Compliance & Regulatory Governance Matrix",
     description:
-      "Retrieve the regulatory introducer perimeter, hash-bound approval protocol, and evidence citation standards.",
+      "Retrieve the introducer perimeter, cryptographic SHA-256 approval hash protocol, and opt-out suppression rules.",
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-  async () => result(COMPLIANCE_AND_REGULATORY_MATRIX),
+  async () => result(COMPLIANCE_GOVERNANCE_MATRIX),
 );
 
 server.registerTool(
   "get_crm_zero_trust_matrix",
   {
-    title: "Get Zero-Trust CRM & Integration Architecture",
+    title: "Get Zero-Trust CRM & External Integration Rules",
     description:
-      "Retrieve the security rules, allowlists, and fail-closed gateway specifications for HubSpot CRM and Cal.com integrations.",
+      "Retrieve the fail-closed gateway specifications, allowlist policies, and signed webhook validation requirements for external integrations.",
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-  async () => result(ZERO_TRUST_CRM_MATRIX),
+  async () => result(ZERO_TRUST_INTEGRATION_RULES),
 );
 
 server.registerTool(
   "query_ctx_architecture",
   {
-    title: "Query CTX Bank Technical Architecture",
+    title: "Query CTX Bank Technical Architecture Subsystems",
     description:
-      "Retrieve in-depth technical documentation on CTX Bank subsystems (runtime-engine, sqlite-wal-singletons, rag-perimeter, deliverability-daemon).",
+      "Inspect in-depth technical documentation on CTX Bank subsystems (runtime-engine, sqlite-wal-singletons, rag-perimeter, deliverability-daemon).",
     inputSchema: {
       subsystem: z.enum([
         "runtime-engine",
@@ -331,10 +388,16 @@ server.registerTool(
 
 const resources = [
   {
-    name: "system-overview",
-    uri: "ctx://bank/system-overview",
-    description: "CTX Bank architectural overview and ecosystem reach",
-    data: CTX_BANK_OVERVIEW,
+    name: "platform-manifest",
+    uri: "ctx://bank/platform-manifest",
+    description: "CTX & CTX Bank architectural overview, mission, and ecosystem reach",
+    data: CTX_PLATFORM_MANIFEST,
+  },
+  {
+    name: "fresh-instance-guide",
+    uri: "ctx://bank/fresh-instance-guide",
+    description: "Step-by-step onboarding guide for agents initializing in a fresh deployment",
+    data: FRESH_INSTANCE_ORIENTATION,
   },
   {
     name: "5-agent-spec",
@@ -352,13 +415,13 @@ const resources = [
     name: "compliance-matrix",
     uri: "ctx://bank/compliance-matrix",
     description: "Regulatory introducer boundaries and hash-gated approval rules",
-    data: COMPLIANCE_AND_REGULATORY_MATRIX,
+    data: COMPLIANCE_GOVERNANCE_MATRIX,
   },
   {
-    name: "crm-zero-trust",
-    uri: "ctx://bank/crm-zero-trust",
+    name: "zero-trust-integrations",
+    uri: "ctx://bank/zero-trust-integrations",
     description: "Zero-trust fail-closed CRM gateway and audit specifications",
-    data: ZERO_TRUST_CRM_MATRIX,
+    data: ZERO_TRUST_INTEGRATION_RULES,
   },
 ];
 
@@ -384,33 +447,36 @@ for (const res of resources) {
 // ============================================================================
 
 server.registerPrompt(
-  "ctx_agent_system_prompt",
+  "ctx_agent_bootstrap_prompt",
   {
-    title: "Generate CTX Fleet System Prompt",
+    title: "Bootstrap New Agent in Fresh CTX Instance",
     description:
-      "Generates an iron-clad system prompt for an autonomous agent operating within the CTX Bank ecosystem.",
+      "Conditions a newly initialized agent with the universal CTX Bank operating directives, evidence truth boundaries, and tenant isolation rules.",
     argsSchema: {
       agentRole: z
         .string()
-        .describe("The role to assume (e.g. 'Prospect Intelligence', 'Outreach Drafter', 'Compliance Officer')"),
-      clientName: z.string().default("ASP Private Capital").describe("Enterprise client name"),
+        .describe("The role being assigned to this agent (e.g. 'Prospect Intelligence', 'Outreach Drafter', 'Deliverability Guardian')"),
+      tenantOrganizationName: z
+        .string()
+        .describe("The name of the enterprise client organization operating this CTX instance"),
     },
   },
-  async ({ agentRole, clientName }) => ({
+  async ({ agentRole, tenantOrganizationName }) => ({
     messages: [
       {
         role: "user",
         content: {
           type: "text",
-          text: `You are an autonomous agent operating within the CTX Bank platform on behalf of ${clientName}.
-Your designated role: ${agentRole}.
+          text: `You are an autonomous agent operating within CTX Bank for the client organization: "${tenantOrganizationName}".
+Your assigned role: ${agentRole}.
 
 You must strictly obey the following CTX Bank Sovereign Operating Directives:
-1. TRUTH BOUNDARY: Never invent or extrapolate facts. Every claim must cite verified evidence from the provided dossier.
+1. TRUTH BOUNDARY: Never invent or extrapolate facts. Every claim must cite verified evidence from CTX Bank.
 2. ZERO DIRECT ACTIONS: You do not possess external API tokens, email dispatches, or CRM write privileges. All operations are submitted as typed proposals to the deterministic workflow engine.
-3. COMPLIANCE & BOUNDARIES: Never provide financial advice, performance guarantees, or solicit unregistered investments. Act solely within authorized introducer boundaries.
-4. CAL.COM BOOKING RULE: Never dispatch a scheduling link on initial cold contact. Booking links are strictly restricted to interested inbound follow-ups.
-5. HASH LOCK: Any draft modifications trigger automated compliance re-evaluation.`,
+3. COMPLIANCE & BOUNDARIES: Never provide regulated financial advice or unwarranted performance guarantees. Act solely within authorized commercial liaison boundaries.
+4. CALENDAR SCHEDULING RULE: Never dispatch a scheduling link on initial cold contact. Booking links are strictly restricted to interested inbound follow-ups.
+5. HASH LOCK: Modifying any draft invalidates existing approvals and triggers compliance re-audit.
+6. OUTCOME-AS-A-SERVICE: Your performance is benchmarked against verified business outcomes and zero compliance infractions.`,
         },
       },
     ],
@@ -418,40 +484,35 @@ You must strictly obey the following CTX Bank Sovereign Operating Directives:
 );
 
 server.registerPrompt(
-  "evaluate_outreach_compliance",
+  "verify_fresh_instance_readiness",
   {
-    title: "Evaluate Outreach Compliance",
+    title: "Verify Fresh Instance Readiness",
     description:
-      "Reviews an outreach draft against the regulatory introducer perimeter and CTX compliance rules.",
+      "Evaluates whether a newly deployed CTX client instance has completed prerequisite setup before launching campaigns.",
     argsSchema: {
-      draftText: z.string().describe("The draft message text to evaluate"),
-      prospectDossierSummary: z.string().describe("The facts established in the verified dossier"),
+      hasIngestedCorpus: z.boolean().describe("Whether knowledge documents have been uploaded and processed into the graph"),
+      dnsHygieneVerified: z.boolean().describe("Whether SPF/DKIM/DMARC records are confirmed for the sending domain"),
+      crmWriteMode: z.enum(["dry_run", "live"]).describe("Current write mode of the CRM integration gateway"),
     },
   },
-  async ({ draftText, prospectDossierSummary }) => ({
+  async ({ hasIngestedCorpus, dnsHygieneVerified, crmWriteMode }) => ({
     messages: [
       {
         role: "user",
         content: {
           type: "text",
-          text: `Please conduct a rigorous CTX Bank Compliance Audit on the following outreach draft:
+          text: `Evaluate fresh instance launch readiness for CTX Bank:
 
-PROSPECT VERIFIED DOSSIER:
-"""
-${prospectDossierSummary}
-"""
-
-PROPOSED OUTREACH DRAFT:
-"""
-${draftText}
-"""
+CURRENT STATUS:
+- Knowledge Corpus Ingested: ${hasIngestedCorpus ? "YES" : "NO"}
+- Domain DNS Hygiene (SPF/DKIM/DMARC) Verified: ${dnsHygieneVerified ? "YES" : "NO"}
+- CRM Gateway Write Mode: ${crmWriteMode}
 
 AUDIT CHECKLIST:
-1. Does the draft contain any unsubstantiated claims not present in the dossier?
-2. Does the draft offer regulated financial advice or guarantee investment performance?
-3. If this is an initial message, does it improperly contain a booking link or calendar invite?
-4. Are appropriate introducer disclosures and sender identification maintained?
-5. Verdict: PASS, QUARANTINE, or REJECT with specific line citations.`,
+1. Is the truth boundary established? (If NO, campaigns MUST be blocked).
+2. Is domain reputation protected? (If NO, email dispatch MUST remain simulated).
+3. Is CRM write mode intentional? (Recommend dry_run for initial cohort).
+4. Provide immediate actionable steps to achieve full production clearance.`,
         },
       },
     ],
