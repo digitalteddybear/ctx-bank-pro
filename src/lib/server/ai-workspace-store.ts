@@ -26,6 +26,8 @@ type RunRow = { id: string; requestId: string; conversationId: string; assistant
 export class AIWorkspaceStore {
   readonly db: DatabaseSync;
   readonly workspaceId: string;
+  private readonly owner=randomUUID();
+  private readonly maintenance:NodeJS.Timeout;
   constructor(filename = databasePath()) {
     if (filename !== ":memory:") {
       const directory = path.dirname(filename);
@@ -43,6 +45,7 @@ export class AIWorkspaceStore {
       CREATE INDEX IF NOT EXISTS messages_by_conversation ON messages(conversation_id, sequence);
       CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, conversation_id TEXT NOT NULL REFERENCES conversations(id), assistant_message_id TEXT NOT NULL, status TEXT NOT NULL, error TEXT, next_sequence INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS runs_by_conversation ON runs(conversation_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS workspace_run_leases(run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,owner TEXT NOT NULL,expires_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS run_events (event_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE, sequence INTEGER NOT NULL, event_type TEXT NOT NULL, data_json TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(run_id, sequence));
       CREATE INDEX IF NOT EXISTS run_events_sequence ON run_events(run_id, sequence);
       CREATE TABLE IF NOT EXISTS artifacts (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, conversation_id TEXT NOT NULL REFERENCES conversations(id), title TEXT NOT NULL, type TEXT NOT NULL, status TEXT NOT NULL, current_version INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -50,13 +53,20 @@ export class AIWorkspaceStore {
       CREATE TABLE IF NOT EXISTS artifact_versions (artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE, version INTEGER NOT NULL, data_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(artifact_id, version));
       CREATE TABLE IF NOT EXISTS source_records (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, data_json TEXT NOT NULL, created_at TEXT NOT NULL);
       INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, CURRENT_TIMESTAMP);`);
-    const savedId = this.db.prepare("SELECT value FROM workspace_meta WHERE key='workspace_id'").get() as { value?: string } | undefined;
-    this.workspaceId = savedId?.value ?? randomUUID();
-    this.db.prepare("INSERT OR IGNORE INTO workspace_meta(key,value) VALUES ('workspace_id',?)").run(this.workspaceId);
+    this.db.prepare("INSERT OR IGNORE INTO workspace_meta(key,value) VALUES ('workspace_id',?)").run(randomUUID());
+    this.workspaceId=String(this.db.prepare("SELECT value FROM workspace_meta WHERE key='workspace_id'").get()!.value);
     this.recoverInterruptedRuns();
+    this.maintenance=setInterval(()=>{
+      try {
+        this.db.prepare("UPDATE workspace_run_leases SET expires_at=? WHERE owner=?").run(Date.now()+60000,this.owner);
+        this.recoverInterruptedRuns();
+      } catch(error) { console.error("Workspace run recovery deferred",error instanceof Error?error.name:"Database error"); }
+    },15000);
+    this.maintenance.unref();
   }
 
   private transaction<T>(action: () => T): T {
+    if(this.db.isTransaction)return action();
     this.db.exec("BEGIN IMMEDIATE");
     try { const result = action(); this.db.exec("COMMIT"); return result; }
     catch (error) { this.db.exec("ROLLBACK"); throw error; }
@@ -143,21 +153,37 @@ export class AIWorkspaceStore {
   }
 
   createRun(input: { id: string; requestId: string; conversationId: string; assistantMessageId: string }): { run: RunRow; created: boolean } {
+    return this.transaction(()=>{
     const current = this.db.prepare("SELECT id,request_id AS requestId,conversation_id AS conversationId,assistant_message_id AS assistantMessageId,status,error FROM runs WHERE request_id=?").get(input.requestId) as RunRow | undefined;
     if (current) return { run: current, created: false };
     this.db.prepare("INSERT INTO runs(id,request_id,conversation_id,assistant_message_id,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").run(input.id, input.requestId, input.conversationId, input.assistantMessageId, "running", now(), now());
+    this.db.prepare("INSERT INTO workspace_run_leases VALUES (?,?,?)").run(input.id,this.owner,Date.now()+60000);
     return { run: { id: input.id, requestId: input.requestId, conversationId: input.conversationId, assistantMessageId: input.assistantMessageId, status: "running", error: null }, created: true };
+    });
   }
 
   appendRunEvent(runId: string, conversationId: string, type: AIWorkspaceEvent["type"], payload: Record<string, unknown>, artifactId?: string, artifactVersion?: number): AIWorkspaceEvent {
     return this.transaction(() => {
-      const row = this.db.prepare("SELECT next_sequence AS sequence FROM runs WHERE id=? AND conversation_id=?").get(runId, conversationId) as { sequence: number } | undefined;
+      const row = this.db.prepare("SELECT next_sequence AS sequence,status FROM runs WHERE id=? AND conversation_id=?").get(runId, conversationId) as { sequence: number;status:string } | undefined;
       if (!row) throw new AIWorkspaceError("Run not found.", 404);
+      if(row.status!=="running")throw new AIWorkspaceError("This run has finished.",409);
       const event = aiWorkspaceEventSchema.parse({ eventId: randomUUID(), schemaVersion: 1, runId, conversationId, ...(artifactId ? { artifactId } : {}), ...(artifactVersion ? { artifactVersion } : {}), sequence: row.sequence, timestamp: now(), type, payload });
       this.db.prepare("INSERT INTO run_events(event_id,run_id,sequence,event_type,data_json,created_at) VALUES (?,?,?,?,?,?)").run(event.eventId, runId, event.sequence, type, JSON.stringify(event), event.timestamp);
       const terminal = type === "run.completed" || type === "run.failed" || type === "run.cancelled";
       this.db.prepare("UPDATE runs SET next_sequence=?,status=?,error=?,updated_at=? WHERE id=?").run(row.sequence + 1, terminal ? type.slice(4) : "running", type === "run.failed" && typeof payload.error === "string" ? payload.error : null, event.timestamp, runId);
+      if(terminal)this.db.prepare("DELETE FROM workspace_run_leases WHERE run_id=?").run(runId);
       return event;
+    });
+  }
+
+  appendMessageEvent(runId:string, conversationId:string, messageId:string, update:Partial<AIWorkspaceMessage>, type:AIWorkspaceEvent["type"], payload:Record<string,unknown>) {
+    return this.transaction(()=>{
+      const run=this.getRun(runId);
+      if(!run || run.conversationId!==conversationId || run.assistantMessageId!==messageId)
+        throw new AIWorkspaceError("Run and message do not match.",409);
+      if(run.status!=="running")throw new AIWorkspaceError("This run has finished.",409);
+      this.updateMessage(conversationId,messageId,update);
+      return this.appendRunEvent(runId,conversationId,type,payload);
     });
   }
 
@@ -172,18 +198,21 @@ export class AIWorkspaceStore {
   }
 
   private recoverInterruptedRuns() {
-    const rows = this.db.prepare("SELECT id,conversation_id AS conversationId,assistant_message_id AS assistantMessageId FROM runs WHERE status='running'").all() as { id: string; conversationId: string; assistantMessageId: string }[];
-    for (const run of rows) {
-      const interrupted = "The CTX process restarted before this response finished. Retry to continue.";
-      try { this.updateMessage(run.conversationId, run.assistantMessageId, { status: "error", ...(this.messageContent(run.assistantMessageId) ? {} : { content: interrupted }) }); } catch { /* A deleted or migrated message does not block workspace recovery. */ }
-      this.appendRunEvent(run.id, run.conversationId, "run.failed", { error: interrupted, code: "process_restarted" });
-    }
+    const expired="SELECT r.id,r.conversation_id AS conversationId,r.assistant_message_id AS assistantMessageId FROM runs r LEFT JOIN workspace_run_leases l ON l.run_id=r.id WHERE r.status='running' AND (l.expires_at IS NULL OR l.expires_at<=?)";
+    if(!this.db.prepare(expired+" LIMIT 1").get(Date.now()))return;
+    this.transaction(()=>{
+      const rows=this.db.prepare(expired).all(Date.now());
+      for(const row of rows){
+        const id=String(row.id), conversationId=String(row.conversationId), messageId=String(row.assistantMessageId);
+        const interrupted="The CTX process restarted before this response finished. Retry to continue.";
+        const message=this.getConversation(conversationId)?.messages.find(item=>item.id===messageId);
+        if(message)this.updateMessage(conversationId,messageId,{status:"error",content:message.content||interrupted});
+        this.appendRunEvent(id,conversationId,"run.failed",{error:interrupted,code:"process_restarted"});
+      }
+    });
   }
 
-  private messageContent(messageId: string): string {
-    const row = this.db.prepare("SELECT data_json FROM messages WHERE id=?").get(messageId) as { data_json: string } | undefined;
-    return row ? parseJson(row.data_json, aiWorkspaceMessageSchema).content : "";
-  }
+
 
   createArtifact(raw: Omit<AIWorkspaceArtifact, "workspaceId" | "currentVersion" | "createdAt" | "updatedAt"> & { version: AIWorkspaceArtifactVersion }): AIWorkspaceArtifact {
     const createdAt = now();
@@ -253,7 +282,11 @@ export class AIWorkspaceStore {
     return sources.map(source => aiWorkspaceSourceReferenceSchema.parse(source));
   }
 
-  close() { this.db.close(); }
+  close() {
+    clearInterval(this.maintenance);
+    try{this.db.prepare("DELETE FROM workspace_run_leases WHERE owner=?").run(this.owner);}
+    finally{this.db.close();}
+  }
 }
 
 const g = globalThis as typeof globalThis & { __ctxAIWorkspaceStore?: AIWorkspaceStore };

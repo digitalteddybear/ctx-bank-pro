@@ -5,7 +5,7 @@ import { OutreachEngine } from "./engine";
 import { ConfigurableModel, FixtureModel, outreachModelConfig } from "./models";
 import { usableSources, usableDeliverabilitySources, seedFixtureSources } from "./sources";
 import { sendLiveOutreachEmail } from "./transport/email";
-import { fetchLatestInboundReply, getExistingProspectMessageUids, inboundReplyEventId } from "./transport/imap";
+import { fetchLatestInboundReply, inboundReplyEventId } from "./transport/imap";
 import { getHubSpotGateway } from "../integrations/hubspot-gateway";
 import { HubSpotReadClient } from "../integrations/hubspot-schema";
 import { CampaignRegistry } from "./campaigns";

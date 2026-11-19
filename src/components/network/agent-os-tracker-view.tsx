@@ -2,37 +2,18 @@
 
 import { useState, useMemo, useEffect } from "react";
 import {
-  Activity,
-  AlertCircle,
   ArrowRight,
-  ArrowUpRight,
-  BarChart3,
   Bot,
-  Building2,
   Check,
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Compass,
   Cpu,
   FileCode,
   FileText,
-  Filter,
-  Flame,
-  GitBranch,
-  Inbox,
   Lightbulb,
-  Mail,
-  MessageSquare,
-  Radio,
   RefreshCw,
-  Send,
-  ShieldAlert,
   ShieldCheck,
   Sparkles,
   TrendingUp,
-  UserCheck,
   Zap,
 } from "lucide-react";
 import { Heading, Text } from "@astryxdesign/core/Text";
@@ -579,7 +560,7 @@ export function AgentOsTrackerView({ onComplete }: { onComplete?: () => Promise<
                   </span>
 
                   {opt.applied ? (
-                    <span style={{ fontSize: "11px", color: "#10b981", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontSize: "11px", color: "#10b981", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
                       <Check size={12} /> Applied {opt.appliedAt}
                     </span>
                   ) : (

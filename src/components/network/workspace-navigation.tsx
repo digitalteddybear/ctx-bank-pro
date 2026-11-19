@@ -6,8 +6,8 @@ import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Avatar } from "@astryxdesign/core/Avatar";
-import { BookOpenText, Bot, Brain, Briefcase, ChevronLeft, Cpu, Cuboid, Database, Folder, GitBranch, GitCommit, Grid2X2, Home, Layers, Network, Shield, Users, X } from "lucide-react";
-import { IconButton } from "@/components/ui/primitives";
+import { BookOpenText, Bot, Brain, Briefcase, ChevronLeft, Cpu, Database, Folder, GitBranch, GitCommit, Grid2X2, Home, Layers, Network, Shield, Users, X } from "lucide-react";
+import { CtxIcon, IconButton } from "@/components/ui/primitives";
 import { useGraphStore } from "@/lib/graph/store";
 import { buildOrbitalLayout, orbitSegments } from "@/lib/graph/orbital-layout";
 
@@ -46,11 +46,11 @@ export function WorkspaceNavigation({ active, extended, onNavigate, onCloseConte
   };
   return <>
     <SideNav className="rail enterprise-rail" header={<HStack gap={2} vAlign="center" padding={3}>
-      <Cuboid size={18} /><Text weight="semibold">CTX Bank PRO</Text>
+      <CtxIcon size={18} /><Text weight="semibold">CTX Bank PRO</Text>
       <IconButton label="Close navigation" onClick={onClose}><X size={14} /></IconButton>
     </HStack>} footer={<VStack gap={1}>
       <SideNavItem icon={<BookOpenText size={16} />} label="Documentation" onClick={() => window.location.assign("/extension")} />
-      <HStack className="workspace-profile" gap={2} padding={3} vAlign="center"><Avatar name="Workspace user" size="sm" /><VStack gap={0}><Text>Workspace user</Text><Text type="supporting" color="secondary">{syncState === "live" ? "Active · Connected" : "Connecting"}</Text></VStack></HStack>
+      <HStack className="workspace-profile" gap={2} padding={3} vAlign="center"><Avatar name="Workspace user" size="sm" /><VStack gap={1}><Text>Workspace user</Text><Text type="supporting" color="secondary">{syncState === "live" ? "Active · Connected" : "Connecting"}</Text></VStack></HStack>
     </VStack>}>
       <SideNavSection title="Mission Control" isHeaderHidden>
         <SideNavItem icon={<Home size={16} />} label="Mission Control" onClick={() => setViewMode("dashboard")} />
@@ -64,7 +64,7 @@ export function WorkspaceNavigation({ active, extended, onNavigate, onCloseConte
     <VStack as="aside" className={`workspace-context ${extended ? "is-open" : ""}`} aria-label="Workspace context" inert={!extended} gap={0}>
       <HStack className="workspace-context__heading" padding={3} gap={2} vAlign="center" hAlign="between"><Text weight="semibold">{active}</Text><IconButton label="Close context panel" onClick={onCloseContext}><ChevronLeft size={16} /></IconButton></HStack>
       <VStack className="workspace-context__scroll" isScrollable gap={4} padding={3}>
-        <HStack gap={2} vAlign="center"><Avatar name={selected?.label ?? "ASP Private Capital"} size="md" /><VStack gap={0}><Text weight="semibold">{selected?.label ?? "ASP Private Capital"}</Text><Text type="supporting" color="secondary">{selected?.id.startsWith("lead-") ? "Prospect dossier" : `${leads.length} connected prospects`}</Text></VStack></HStack>
+        <HStack gap={2} vAlign="center"><Avatar name={selected?.label ?? "ASP Private Capital"} size="md" /><VStack gap={1}><Text weight="semibold">{selected?.label ?? "ASP Private Capital"}</Text><Text type="supporting" color="secondary">{selected?.id.startsWith("lead-") ? "Prospect dossier" : `${leads.length} connected prospects`}</Text></VStack></HStack>
         <Text color="secondary" type="supporting">{contextCopy[active]}</Text>
         <List density="compact" header="Classifications">
           {orbitSegments.map(segment => <ListItem key={segment.tag} label={segment.label} startContent={<Users size={14} />} endContent={<Text type="supporting">{nodes.find(node => node.tier === 1 && node.label === segment.label)?.members.length ?? 0}</Text>} onClick={() => openRecord(`segment-${segment.tag.toLowerCase()}`)} />)}

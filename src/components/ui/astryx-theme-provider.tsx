@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useLayoutEffect, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useLayoutEffect, useSyncExternalStore, type ReactNode } from "react";
 
 type ApplicationTheme = "dark" | "light";
 export type ThemePreference = "system" | ApplicationTheme;
@@ -12,6 +12,7 @@ const themeListeners = new Set<() => void>();
 const ApplicationThemeContext = createContext<{
   theme: ApplicationTheme;
   preference: ThemePreference;
+  saveError: string;
   setPreference: (preference: ThemePreference) => void;
 } | null>(null);
 
@@ -20,10 +21,15 @@ function systemTheme(): ApplicationTheme {
 }
 
 function readPreference(): ThemePreference {
+  try {
   const preference = window.localStorage.getItem(preferenceStorageKey);
   if (preference === "system" || preference === "light" || preference === "dark") return preference;
   const legacyTheme = window.localStorage.getItem(legacyThemeStorageKey);
   return legacyTheme === "light" || legacyTheme === "dark" ? legacyTheme : "system";
+  } catch {
+    const value=document.documentElement.dataset.themePreference;
+    return value==="light"||value==="dark"?value:"system";
+  }
 }
 
 function resolveTheme(preference: ThemePreference): ApplicationTheme {
@@ -80,20 +86,53 @@ export function AstryxThemeProvider({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     // Do not overwrite the preference applied before React hydrates. The external
     // store will immediately reconcile this fallback with localStorage instead.
-    if (document.documentElement.dataset.themePreference && document.documentElement.dataset.theme !== theme) return;
+    if(snapshot!==readThemeSnapshot())return;
+    document.documentElement.dataset.themePreference=preference;
     document.documentElement.dataset.theme = theme;
-  }, [theme]);
+  }, [snapshot,preference,theme]);
 
-  const setPreference = useCallback((nextPreference: ThemePreference) => {
+  const applyPreference = useCallback((nextPreference: ThemePreference) => {
     const nextTheme = resolveTheme(nextPreference);
-    window.localStorage.setItem(preferenceStorageKey, nextPreference);
+    try{window.localStorage.setItem(preferenceStorageKey,nextPreference);}catch{/* The active document retains the preference. */}
     document.documentElement.dataset.theme = nextTheme;
     document.documentElement.dataset.themePreference = nextPreference;
     notifyThemeListeners();
   }, []);
 
+  const [saveError,setSaveError]=useState("");
+  const change=useRef(0);
+  const role=useRef<string|null|undefined>(undefined);
+  const queue=useRef(Promise.resolve());
+  const readSession=useCallback(async()=>{
+    const response=await fetch("/api/session",{cache:"no-store"});
+    if(!response.ok)throw new Error("Appearance settings unavailable.");
+    return await response.json() as {role:string|null;themePreference?:ThemePreference|null};
+  },[]);
+  useEffect(()=>{
+    let active=true;
+    const initial=change.current;
+    void readSession().then(session=>{
+      if(active)role.current=session.role;
+      if(active&&initial===change.current&&session.role==="administrator"&&session.themePreference)
+        applyPreference(session.themePreference);
+    }).catch(()=>{/* Local preference stays available while offline. */});
+    return ()=>{active=false;};
+  },[readSession,applyPreference]);
+  const setPreference=useCallback((value:ThemePreference)=>{
+    const revision=++change.current;
+    applyPreference(value);
+    setSaveError("");
+    queue.current=queue.current.then(async()=>{
+      if(revision!==change.current)return;
+      const activeRole=role.current===undefined?(await readSession()).role:role.current;
+      if(activeRole!=="administrator"||revision!==change.current)return;
+      const response=await fetch("/api/session",{method:"PATCH",keepalive:true,headers:{"content-type":"application/json"},body:JSON.stringify({themePreference:value})});
+      if(!response.ok)throw new Error("Appearance could not be saved to your profile.");
+    }).catch(()=>{if(revision===change.current)setSaveError("Appearance could not be saved to your profile.");});
+  },[applyPreference,readSession]);
+
   return (
-    <ApplicationThemeContext value={{ theme, preference, setPreference }}>
+    <ApplicationThemeContext value={{ theme, preference, setPreference, saveError }}>
       {children}
     </ApplicationThemeContext>
   );

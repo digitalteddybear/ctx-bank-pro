@@ -1,18 +1,30 @@
-CTX — Agent contingencies for LangSmith review
+CTX BANK — AGENT CONTINGENCIES FOR VALIDATION
+Audit: 2026-11-15. These are open checks, not claims of production acceptance.
 
-Verified by code inspection; baseline offline tests passed.
+1. SMTP ambiguity: worker death after provider acceptance must enter reconciliation, never blindly resend. Scheduler already marks expired sending leases uncertain; verify the operator recovery journey.
+2. Inbound identity: current recurring IMAP lookup searches INBOX by sender and time. It reads threading headers but does not require a matching thread in fetchLatestInboundReply. Verify two concurrent runs for one email, forwarded replies, archived mail and UIDVALIDITY changes.
+3. Inbound durability: verify a crash after reply receipt but before CRM queue insertion cannot lose the CRM event on retry. Checkpoint and receipt reconciliation require failure-injection coverage.
+4. Scheduling capacity: current daily budget counts initial emails and replies together at 135. Agreed ramp needs up to 136 initial conversations plus reply capacity; production-delivery currently calls scheduler.claim with ramp day 0. Resolve before launch.
+5. Conversation persistence: verify context, approved template version, identity and callbacks survive worker restart, deployment and backup restore. Do not infer this from WAL alone.
+6. Configuration: Demo Save currently persists HTML only. Campaign cohort/mode and AI/notification preferences need durable coverage. Existing browser-only state is not sufficient for a hosted user switching devices.
+7. Calendar: test availability selection, timezone/DST, delegated booking, rescheduling/cancellation and uncertain API outcomes. Verify Google Calendar and HubSpot association without duplicate meeting creation.
+8. Compliance sources: verify tenant-scoped current approved sources and propagate changed-source review; fixture-source success does not establish production readiness.
+9. Current browser audit: Campaign/Demo template rendering, save feedback, modal Escape and mobile scrolling are under active verification. Preserve user templates during QA.
 
-1. CampaignRegistry.start creates held enrollment records but no live dispatch work. UI campaign preparation is not evidence of SMTP delivery.
-2. The default worker starts inside Next.js. A web process exit stops reply monitoring; browser activity must not be required in production.
-3. The standalone runner defaults to FixtureModel unless --live is supplied. Production startup must explicitly select the configured API model.
-4. HubSpot mutation authorization still references a fixed pilot allowlist. Reconcile verified identities with explicitly selected campaign membership before scaling.
-5. RESOLVED: independent versioned Campaign/Demo templates persist in SQLite; Demo reloads server state and captures its template per run. Browser/live acceptance remains required.
-6. RESOLVED: preview and SMTP use one parser-based renderer. Five tests cover versioned persistence, escaped reply content, unsafe HTML and responsive CSS.
-7. Email SMTP acceptance does not prove inbox placement. Uncertain SMTP outcomes require reconciliation before retry, including after worker crashes.
-8. Existing transcript persistence is per run. Evaluate contact identity, cross-run continuity, unresolved questions and context retention after restart.
-9. CRM writes must follow confirmed delivery/inbound events, with durable retries and deduplication; test provider timeout after remote commit.
-10. Current local workspace authentication does not provide hosted browser sessions. Container deployment requires authenticated administrator access.
-11. RAG indexing assumes ../../RAG and a local Python virtualenv. Containers require explicit paths, dependencies and mounted corpus data.
-12. Required source fixtures still block live outreach reviews. ASP compliance monitoring must own source acquisition and report evidence status without affecting unrelated CTX operations.
+Verified so far: Docker operator secret-file authentication regression; isolated preview/save route and SQLite scope isolation regression; 12/12 production regression checks (including synthetic queue/booking checks). These do not establish live delivery acceptance.
 
-Scenarios: duplicate IMAP event; SMTP timeout after acceptance; HubSpot 429/5xx; token expiry; restart between draft and send; two workers claiming one message; same-name contacts; changed email identity; stale template edit; opt-out during queue wait; manual takeover; cancellation during inference; Cal booking already confirmed.
+2026-11-16 audit follow-up:
+AI settings now persist in SQLite and feed new chat inference requests. Saving does not activate or change the outreach worker model; its explicit connection-check activation remains separate.
+Notification preferences currently have no delivery consumer. Do not rely on desktop/email/digest notification controls for unattended operational alerting until that path is implemented and verified.
+
+2026-11-17 notification follow-up:
+Notification controls now connect to durable event/read state, worker email delivery and browser desktop/sound delivery. Uncertain operator email sends are not blindly retried and appear in Settings; live SMTP acceptance has not been performed. Browser desktop delivery requires an open CTX session and permission. Always-on email requires the existing worker to remain running.
+
+2026-11-18 Recovery acceptance
+Backup and restore preserve outreach history, idempotency receipts, suppression and pending CRM/agent work in fresh-process tests. Restoring an older snapshot cannot prove external sends made after that snapshot; keep live dispatch disabled until reconciling those outcomes. Container replacement/hosted acceptance remains outstanding. Isolated Linux Docker recovery tests: 3/3 passed.
+
+2026-11-18 Campaign enrollment race resolved
+Enrollment now atomically commits run settings, CRM contact grant, agent run/job, mapping and event. Pause/cancel/opt-out during asynchronous hydration is rechecked. Failure-injection and overlapping-worker regression tests pass. Remaining queue/pacing/reply-capacity acceptance is tracked separately; this does not assert live production readiness.
+
+2026-11-18 CRM queue race resolved / remaining pacing work
+Per-claim ownership prevents expired CRM workers from overwriting later outcomes. Unexpected timeline-creation failures require reconciliation; explicit rejections retry normally. Production regression 29/29 passed. Stop older workers during upgrade because old binaries do not enforce claim tokens. Daily sender cap still includes replies; campaign ramp day remains hardcoded in production delivery and requires follow-up implementation before throughput acceptance.

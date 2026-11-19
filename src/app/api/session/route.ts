@@ -8,7 +8,10 @@ export const runtime="nodejs";
 export async function GET(request:NextRequest){
   const loginRequired=true;
   const role=await workspaceSessionRole(request);
-  return NextResponse.json({loginRequired,setupRequired:!hasAdminProfile(),setupMode:setupMode(),authenticated:role!==null,role:role},{headers:{"Cache-Control":"no-store"}});
+  const rawEmail = role==="administrator" ? adminEmail() : "";
+  const localPart = rawEmail.split("@")[0]?.split(/[._-]/)[0] ?? "";
+  const profileName = localPart ? localPart.charAt(0).toUpperCase() + localPart.slice(1) : null;
+  return NextResponse.json({loginRequired,setupRequired:!hasAdminProfile(),setupMode:setupMode(),authenticated:role!==null,role:role,...(role==="administrator"?{profileName,themePreference:outreachStore().setting("administrator-theme")??null}:{})},{headers:{"Cache-Control":"no-store"}});
 }
 export async function POST(request:NextRequest){
   if(request.headers.get("origin")!==request.nextUrl.origin&&request.headers.get("sec-fetch-site")!=="same-origin")
@@ -62,4 +65,16 @@ export async function POST(request:NextRequest){
 export async function DELETE(request:NextRequest){
   if(request.headers.get("origin")!==request.nextUrl.origin&&request.headers.get("sec-fetch-site")!=="same-origin")return NextResponse.json({error:"Same-origin request required."},{status:403});
   const response=NextResponse.json({ok:true});response.cookies.delete(sessionCookie);return response;
+}
+
+
+export async function PATCH(request:NextRequest){
+  if(request.headers.get("origin")!==request.nextUrl.origin && request.headers.get("sec-fetch-site")!=="same-origin")
+    return NextResponse.json({error:"Same-origin request required."},{status:403});
+  if(await workspaceSessionRole(request)!=="administrator")
+    return NextResponse.json({error:"Administrator access required."},{status:403});
+  const parsed=z.object({themePreference:z.enum(["dark","light","system"])}).strict().safeParse(await request.json().catch(()=>null));
+  if(!parsed.success)return NextResponse.json({error:"Invalid appearance preference."},{status:400});
+  outreachStore().setSetting("administrator-theme",parsed.data.themePreference);
+  return NextResponse.json(parsed.data,{headers:{"Cache-Control":"no-store"}});
 }

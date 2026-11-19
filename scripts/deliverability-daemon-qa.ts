@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DatabaseSync } from "node:sqlite";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import {
@@ -15,24 +15,12 @@ import { OutreachEngine } from "../src/lib/server/outreach/engine";
 import { FixtureModel } from "../src/lib/server/outreach/models";
 
 test("B1: SQLite WAL mode and busy_timeout are enforced", () => {
-  const testDbPath = path.join(process.cwd(), "data/generated/outreach/wal-test.sqlite");
-  fs.mkdirSync(path.dirname(testDbPath), { recursive: true });
-
-  const store = new OutreachStore(testDbPath);
-  const journalMode = store.db.prepare("PRAGMA journal_mode").get() as { journal_mode: string };
-  const busyTimeout = store.db.prepare("PRAGMA busy_timeout").get() as { timeout: number };
-
-  assert.equal(journalMode.journal_mode.toLowerCase(), "wal");
-  assert.equal(busyTimeout.timeout, 5000);
-
-  // Clean up
-  try {
-    fs.unlinkSync(testDbPath);
-    fs.unlinkSync(`${testDbPath}-wal`);
-    fs.unlinkSync(`${testDbPath}-shm`);
-  } catch {
-    // Ignore cleanup errors
-  }
+  const dir=fs.mkdtempSync(path.join(tmpdir(),"ctx-wal-test-"));
+  const store=new OutreachStore(path.join(dir,"workflows.sqlite"));
+  try{
+    assert.equal(store.db.prepare("PRAGMA journal_mode").get()?.journal_mode,"wal");
+    assert.equal(store.db.prepare("PRAGMA busy_timeout").get()?.timeout,5000);
+  }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
 
 test("B2: Business hours lock restricts sending strictly to 08:30 - 17:30 UK time", () => {

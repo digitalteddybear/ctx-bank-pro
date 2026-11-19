@@ -6,24 +6,34 @@
  * External agent runtimes or sub-services call this endpoint with HUBSPOT_GATEWAY_SHARED_SECRET,
  * preventing any direct credential exposure to the agent process.
  */
-import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getHubSpotGateway } from "@/lib/server/integrations/hubspot-gateway";
 import type { PermittedOperation } from "@/lib/server/integrations/hubspot-types";
+import { DISALLOWED_PLACEHOLDERS, MIN_SECRET_LENGTH, safeEqualSecrets } from "@/lib/server/auth";
+import { deploymentSecret } from "@/lib/server/operator-session-secrets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function isAuthorizedServiceCall(request: NextRequest): boolean {
-  const secret = process.env.HUBSPOT_GATEWAY_SHARED_SECRET || process.env.CTX_OUTREACH_OPERATOR_TOKEN;
-  if (!secret || secret.length < 24) return false;
+  const secret =
+    deploymentSecret("HUBSPOT_GATEWAY_SHARED_SECRET") ||
+    deploymentSecret("CTX_OUTREACH_OPERATOR_TOKEN");
+  if (
+    !secret ||
+    secret.length < MIN_SECRET_LENGTH ||
+    DISALLOWED_PLACEHOLDERS.has(secret.toLowerCase())
+  ) {
+    return false;
+  }
 
   const authHeader = request.headers.get("authorization") || "";
   const supplied = authHeader.replace(/^Bearer\s+/i, "");
+  if (!supplied || DISALLOWED_PLACEHOLDERS.has(supplied.toLowerCase())) {
+    return false;
+  }
 
-  const a = Buffer.from(secret);
-  const b = Buffer.from(supplied);
-  return a.length === b.length && timingSafeEqual(a, b);
+  return safeEqualSecrets(secret, supplied);
 }
 
 export async function POST(request: NextRequest) {

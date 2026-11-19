@@ -35,3 +35,9 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
 };
 
 export const AI_SETTINGS_STORAGE_KEY = "ctxbankpro:ai-settings";
+
+export const aiSettingsSnapshotSchema = z.object({
+  settings: aiSettingsSchema,
+  revision: z.number().int().nonnegative(),
+  updatedAt: z.string().nullable(),
+});

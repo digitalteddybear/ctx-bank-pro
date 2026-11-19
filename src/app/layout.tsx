@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import { AstryxThemeProvider } from "@/components/ui/astryx-theme-provider";
 import "@astryxdesign/core/reset.css";
 import "@astryxdesign/core/astryx.css";

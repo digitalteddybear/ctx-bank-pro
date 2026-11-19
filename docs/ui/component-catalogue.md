@@ -66,3 +66,28 @@ separate compatibility testing; no forced downgrade or override was applied.
 For isolated builds use `CTX_BUILD_DIR=.next-ui-check npm run build` so the active
 preview's output is preserved. Pending: browser checks when templates are supplied
 and the adapter is placed in the dashboard.
+
+## Reply template preview dialog
+
+- Adapter: `src/components/network/reply-template-preview-dialog.tsx`.
+- Uses installed Astryx Dialog, DialogHeader, Grid, VStack, TextArea and Text; CLI build/component documentation inspected.
+- Shared by Campaign and Live Demo. Desktop split editor/preview; narrow screens stack the panes in a scrollable body.
+- Render beside the parent dialog to keep Escape dismissal local to the preview.
+- Server preview uses the same sanitizer as outgoing replies. Missing message placeholders show guidance while preserving layout preview; save remains validated.
+- Browser verified editing, Escape, save feedback, and 390px layout; isolated production build passed.
+
+### AI settings save
+- Existing Models, Reasoning and Planning sections retain their layout and Astryx controls.
+- Added small primary Save and inline status, with Toast confirmation/error. CLI build and Button reference consulted.
+- Server-backed settings use revision conflict checks; chat consumes saved values.
+- Desktop browser verification: save, reload restoration and visible stale-tab conflict; no page errors. No provider calls made by configuration-save tests.
+
+### Notification settings and source review
+- Existing Settings email/desktop groups use Astryx Card, Stack, Switch, Selector and Icon; Save feedback uses Toast.
+- Quiet-hour custom inputs use validated HH:MM text and an IANA time zone.
+- Source Review uses Astryx Dialog, DialogHeader and TextArea with existing named preview dimensions.
+- Mobile Settings replaces the fixed sidebar with a section selector; desktop structure is preserved.
+- CLI build, Dialog, TextInput, TextArea and useMediaQuery references consulted. Desktop/mobile browser source-review and notification-save tests pass.
+- Post-patch preview soak: 12 consecutive real preview edits passed on the active app; settings-save mocking is independently isolated from store persistence tests.
+
+Campaign → Cohort uses two small Astryx NumberInput controls inside the existing campaign card. Daily openings sets the sender’s opening-message limit. Daily total includes openings, replies and follow-ups. Save persists both values for the worker.

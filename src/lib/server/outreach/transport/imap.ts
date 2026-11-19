@@ -79,12 +79,19 @@ export async function getExistingProspectMessageUids(prospectEmail: string): Pro
   return existing;
 }
 
+function replySubject(subject: string) {
+  return subject.replace(/^(?:\s*(?:re|fw|fwd)\s*:\s*)+/i, "").trim().toLowerCase();
+}
+
 export async function fetchLatestInboundReply(options: {
   prospectEmail: string;
   subjectKeyword?: string;
   processedUids?: Set<number>;
-  checkpoint?: {validity:string;uids:number[]};
+  checkpoint?: {validity:string;uids:number[];mailboxId?:string};
+  includeArchived?: boolean;
+  recordedMessageIds?: Set<string>;
   minDate?: Date;
+  thread?: { messageIds: Set<string>; subjects: Set<string> };
 }): Promise<InboundEmail | null> {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, "");
@@ -109,68 +116,81 @@ export async function fetchLatestInboundReply(options: {
     throw new Error(`IMAP connection failed: ${error instanceof Error ? error.message : "unknown error"}`);
   }
 
-  const lock = await client.getMailboxLock("INBOX");
   try {
-    const searchCriteria: Record<string, unknown> = {};
-    if (options.prospectEmail) {
-      searchCriteria.from = options.prospectEmail.trim().toLowerCase();
-    }
-    if (options.subjectKeyword) {
-      searchCriteria.subject = options.subjectKeyword;
-    }
-
-    const seqs = await client.search(searchCriteria);
-    if (!seqs || !seqs.length) return null;
-
-    // Iterate backwards from newest to find latest matching prospect
-    for (let i = 0; i < seqs.length; i++) {
-      const seq = seqs[i];
-      try {
-        const msg = await client.fetchOne(seq, { uid: true, envelope: true, source: true });
-        if (!msg) continue;
-
-        const uid = Number(msg.uid);
-        const validity=client.mailbox?String(client.mailbox.uidValidity):"";
-        if(options.checkpoint?.validity===validity&&options.checkpoint.uids.includes(uid))continue;
-        if (options.processedUids?.has(uid)) continue;
-
-        const senderAddress = msg.envelope?.from?.[0]?.address?.toLowerCase() ?? "";
-        const targetProspect = options.prospectEmail.toLowerCase().trim();
-
-        const matchesSender = senderAddress === targetProspect;
-        const msgDate = msg.envelope?.date ? new Date(msg.envelope.date) : new Date();
-
-        // Strict temporal boundary: Reply must not predate the outbound email
-        if (options.minDate && msgDate.getTime() < options.minDate.getTime() - 5000) {
-          continue;
-        }
-
-        if (matchesSender && msg.source) {
-          const parsed = await simpleParser(msg.source) as { text?: string };
-          const rawText = parsed.text ?? "";
-          const cleanedText = cleanReplyBody(rawText);
-
-          return {
-            uid,
-            uidValidity:validity,
-            mailboxId:user+":INBOX:"+validity,
-            messageId:msg.envelope?.messageId,
-            from: senderAddress,
-            fromName: msg.envelope?.from?.[0]?.name,
-            subject: msg.envelope?.subject ?? "",
-            text: cleanedText || rawText.trim(),
-            date: msgDate,
-            inReplyTo: msg.envelope?.inReplyTo,
-          };
-        }
-      } catch {
-        // Continue scanning
+    const mailbox = options.includeArchived
+      ? (await client.list()).find(folder => folder.specialUse === "\\All")?.path ?? "INBOX"
+      : "INBOX";
+    const lock = await client.getMailboxLock(mailbox, {readOnly:true});
+    try {
+      const searchCriteria: Record<string, unknown> = {};
+      if (options.prospectEmail) {
+        searchCriteria.from = options.prospectEmail.trim().toLowerCase();
       }
-    }
+      if (options.subjectKeyword) {
+        searchCriteria.subject = options.subjectKeyword;
+      }
 
-    return null;
+      // SINCE has day precision. Keep the exact time check below for same-day mail.
+      if (options.minDate) searchCriteria.since = new Date(options.minDate.getTime() - 86_400_000);
+      const found = await client.search(searchCriteria, { uid: true });
+      if (!found || !found.length) return null;
+      const validity = client.mailbox ? String(client.mailbox.uidValidity) : "";
+      const mailboxId = user + ":" + mailbox + ":" + validity;
+      const sameMailbox = options.checkpoint?.mailboxId === mailboxId || (!options.checkpoint?.mailboxId && mailbox === "INBOX");
+      const seen = new Set(sameMailbox && options.checkpoint?.validity === validity ? options.checkpoint.uids : []);
+      for (const uid of found.sort((left, right) => left - right)) {
+        if (seen.has(uid) || options.processedUids?.has(uid)) continue;
+        try {
+          const msg = await client.fetchOne(uid, { uid: true, envelope: true, source: true, internalDate: true }, { uid: true });
+          if (!msg || Number(msg.uid) !== uid) continue;
+
+          if (msg.envelope?.messageId && options.recordedMessageIds?.has(msg.envelope.messageId.trim())) continue;
+          const senderAddress = msg.envelope?.from?.[0]?.address?.toLowerCase() ?? "";
+          const targetProspect = options.prospectEmail.toLowerCase().trim();
+
+          const matchesSender = senderAddress === targetProspect;
+          const msgDate = new Date(msg.internalDate || msg.envelope?.date || 0);
+
+          // Strict temporal boundary: Reply must not predate the outbound email
+          if (options.minDate && msgDate.getTime() < options.minDate.getTime() - 5000) {
+            continue;
+          }
+
+          if (matchesSender && msg.source) {
+            const parsed = await simpleParser(msg.source);
+            if (options.thread) {
+              const parents = [msg.envelope?.inReplyTo, parsed.inReplyTo, parsed.references]
+                .flat().filter((id): id is string => typeof id === "string")
+                .flatMap(id => id.match(/<[^<>]+>/g) ?? [id.trim()]);
+              const matchesThread = parents.length
+                ? parents.some(id => options.thread!.messageIds.has(id))
+                : options.thread.subjects.has(replySubject(msg.envelope?.subject ?? ""));
+              if (!matchesThread) continue;
+            }
+            const rawText = parsed.text ?? "";
+            const cleanedText = cleanReplyBody(rawText);
+
+            return {
+              uid,
+              uidValidity:validity,
+              mailboxId,
+              messageId:msg.envelope?.messageId,
+              from: senderAddress,
+              fromName: msg.envelope?.from?.[0]?.name,
+              subject: msg.envelope?.subject ?? "",
+              text: cleanedText || rawText.trim(),
+              date: msgDate,
+              inReplyTo: msg.envelope?.inReplyTo,
+            };
+          }
+        } catch {
+          // Continue scanning
+        }
+      }
+
+      return null;
+    } finally { lock.release(); }
   } finally {
-    lock.release();
     await client.logout().catch(() => {});
   }
 }
@@ -217,7 +237,7 @@ export async function checkOperatorSentIntervention(options: {
       for (let i = seqs.length - 1; i >= 0 && i >= seqs.length - 10; i--) {
         const msg = await client.fetchOne(seqs[i], { envelope: true, source: true });
         if (!msg) continue;
-        const msgDate = msg.envelope?.date ? new Date(msg.envelope.date) : new Date();
+        const msgDate = new Date(msg.internalDate || msg.envelope?.date || 0);
         if (options.afterDate && msgDate.getTime() < options.afterDate.getTime() - 5000) {
           continue;
         }
@@ -258,6 +278,35 @@ export interface ImapListenerStats {
   activeProspects: number;
 }
 
+type ReplyStore = import("../store").OutreachStore;
+
+function prepareInboundJournal(store: ReplyStore) {
+  store.db.exec("CREATE TABLE IF NOT EXISTS pending_inbound_crm(event TEXT PRIMARY KEY, run_id TEXT NOT NULL, hubspot_id TEXT NOT NULL, email TEXT NOT NULL, text TEXT NOT NULL, message_id TEXT, sent_at TEXT NOT NULL)");
+}
+
+export function flushInboundCrm(store: ReplyStore) {
+  prepareInboundJournal(store);
+  store.transaction(() => {
+    for (const row of store.db.prepare("SELECT * FROM pending_inbound_crm ORDER BY rowid").all()) {
+      const event = String(row.event);
+      const run = store.get(String(row.run_id));
+      const latest = run.transcript.filter(turn => turn.direction === "inbound").at(-1);
+      const current = latest?.eventId === event;
+      if (current && run.next === "conversation" && run.status === "queued") continue;
+      const classification = current && run.status === "suppressed" ? "opt_out"
+        : current && run.next !== "conversation" ? run.classification ?? "general" : "general";
+      const hsId = String(row.hubspot_id);
+      const prospectEmail = String(row.email);
+      const inbound = {text:String(row.text), sentAt:String(row.sent_at), messageId:row.message_id ? String(row.message_id) : undefined};
+      const sentiments:Record<string,AllowedSentimentValue>={interested:"Interested",question:"Question",booking:"Booking Request",opt_out:"Opt Out",not_interested:"Not Interested",unclear:"Unclear"};
+      queueCrmJob(store,event+":reply",run.id,"inbound",{hubspotId:hsId,email:prospectEmail,messageId:inbound.messageId??event,approvedBy:"imap-worker",replyText:inbound.text,replyAt:inbound.sentAt,sentiment:sentiments[classification]??"Unclear",threadId:run.id});
+      queueCrmJob(store,event+":status",run.id,"status",{hubspotId:hsId,email:prospectEmail,messageId:event+":status",approvedBy:"imap-worker",properties:{ctx_status:classification==="opt_out"?"Opted Out":"Replied",ctx_last_contact:inbound.sentAt}});
+      queueCrmJob(store,event+":briefing",run.id,"briefing",{hubspotId:hsId,email:prospectEmail,messageId:event+":briefing",stage:classification,prospectQuote:inbound.text,agentBrief:"Prospect reply classified as "+classification+". Review the preserved conversation before consultation.",talkingPoints:["Address the prospect's explicit question.","Confirm any unresolved request from the conversation.","Use verified dossier and CRM observations."]});
+      store.db.prepare("DELETE FROM pending_inbound_crm WHERE event=?").run(event);
+    }
+  });
+}
+
 /**
  * Single polling cycle of the automated IMAP Inbound Reply Engine.
  * Filters active database runs awaiting reply, checks Gmail inbox by In-Reply-To header
@@ -274,6 +323,7 @@ export async function pollActiveInboundReplies(options: {
   processed: number;
   replies: Array<{ runId: string; email: InboundEmail; classification: string }>;
 }> {
+  flushInboundCrm(options.store);
   const runs = options.store.list();
   const waitingRuns = runs.filter(
     (r) => ["waiting_reply", "booking_pending"].includes(r.status) && (!r.campaignId||r.transcript.some(turn=>turn.deliveryStatus==="sent")) && !options.store.isSuppressed(r.prospect.email)
@@ -293,11 +343,22 @@ export async function pollActiveInboundReplies(options: {
     const liveCrm = options.liveCrm ?? (process.env.HUBSPOT_WRITES_ENABLED === "true");
 
     // Minimum date: from outbound dispatch event to avoid picking up historical threads
-    const outboundEvent = options.store.events(run.id).find((e) => e.kind === "approved" || e.kind === "step_finished");
-    const minDate = outboundEvent ? new Date(outboundEvent.at - 60000) : new Date(Date.now() - 3600000);
+    const firstDelivery = run.transcript.find(turn => turn.direction === "outbound" && turn.deliveryStatus === "sent" && turn.sentAt);
+    const sentAt = Date.parse(firstDelivery?.sentAt ?? "");
+    const minDate = new Date(Number.isFinite(sentAt) ? sentAt : run.createdAt);
 
+    const messageIds = new Set(run.transcript.flatMap(turn => turn.externalMessageId ? [turn.externalMessageId.trim()] : []));
+    const subjects = new Set(run.transcript.flatMap(turn => turn.subject ? [replySubject(turn.subject)] : []).filter(Boolean));
+    // A subject-only reply must distinguish this run from the contact's historical threads.
+    for (const other of runs) {
+      if (other.id === run.id || other.prospect.email.trim().toLowerCase() !== prospectEmail) continue;
+      for (const turn of other.transcript) if (turn.subject) subjects.delete(replySubject(turn.subject));
+    }
     try {
       const inbound = await fetchLatestInboundReply({
+        includeArchived: true,
+        recordedMessageIds: new Set(run.transcript.flatMap(turn => turn.direction === "inbound" && turn.externalMessageId ? [turn.externalMessageId.trim()] : [])),
+        thread: { messageIds, subjects },
         prospectEmail,
         minDate,
         checkpoint:JSON.parse(String(options.store.setting("imap-checkpoint:"+prospectEmail)??"null"))??undefined,
@@ -309,19 +370,30 @@ export async function pollActiveInboundReplies(options: {
         const runEngine = options.engine.model.mode === run.inference
           ? options.engine
           : new OutreachEngine(options.store, run.inference === "live" ? new ConfigurableModel() : new FixtureModel());
-        const accepted = runEngine.reply(run.id, inboundReplyEventId(inbound.uid,inbound.mailboxId), inbound.text, {
-          from: inbound.from,
-          fromName: inbound.fromName,
-          to: process.env.GMAIL_USER,
-          subject: inbound.subject,
-          sentAt: inbound.date.toISOString(),
-          externalMessageId: inbound.messageId,
+        const event = inbound.messageId
+          ? "imap-message-" + createHash("sha256").update(JSON.stringify([process.env.GMAIL_USER, prospectEmail, inbound.messageId.trim()])).digest("hex")
+          : inboundReplyEventId(inbound.uid, inbound.mailboxId);
+        const accepted = options.store.transaction(() => {
+          const recorded = runEngine.reply(run.id, event, inbound.text, {
+            from: inbound.from,
+            fromName: inbound.fromName,
+            to: process.env.GMAIL_USER,
+            subject: inbound.subject,
+            sentAt: inbound.date.toISOString(),
+            externalMessageId: inbound.messageId,
+          });
+          const checkpointKey="imap-checkpoint:"+prospectEmail;
+          const previous=JSON.parse(String(options.store.setting(checkpointKey)??'{"validity":"","uids":[]}')) as {validity:string;uids:number[];mailboxId?:string};
+          const seen=previous.mailboxId===inbound.mailboxId && previous.validity===inbound.uidValidity?previous.uids:[];
+          const saveCheckpoint=()=>options.store.setSetting(checkpointKey,JSON.stringify({mailboxId:inbound.mailboxId,validity:inbound.uidValidity??"",uids:Array.from(new Set([...seen,inbound.uid]))}));
+          if (recorded && run.campaignId && hsId) {
+            options.store.db.prepare("INSERT INTO pending_inbound_crm VALUES(?,?,?,?,?,?,?)")
+              .run(event,run.id,hsId,prospectEmail,inbound.text,inbound.messageId ?? null,inbound.date.toISOString());
+          }
+          saveCheckpoint();
+          return recorded;
         });
-        const checkpointKey="imap-checkpoint:"+prospectEmail;
-        const previous=JSON.parse(String(options.store.setting(checkpointKey)??'{"validity":"","uids":[]}')) as {validity:string;uids:number[]};
-        const seen=previous.validity===inbound.uidValidity?previous.uids:[];
-        const saveCheckpoint=()=>options.store.setSetting(checkpointKey,JSON.stringify({validity:inbound.uidValidity??"",uids:Array.from(new Set([...seen,inbound.uid]))}));
-        if (!accepted){saveCheckpoint();continue;}
+        if (!accepted) continue;
 
         // Drain engine through conversation and compliance agents
         for (let i = 0; i < 40; i++) {
@@ -332,16 +404,10 @@ export async function pollActiveInboundReplies(options: {
         const classification = updatedRun.classification ?? "general";
 
         if(run.campaignId&&hsId){
-          const event=inboundReplyEventId(inbound.uid,inbound.mailboxId);
-          const sentiments:Record<string,AllowedSentimentValue>={interested:"Interested",question:"Question",booking:"Booking Request",opt_out:"Opt Out",not_interested:"Not Interested",unclear:"Unclear"};
-          queueCrmJob(options.store,event+":reply",run.id,"inbound",{hubspotId:hsId,email:prospectEmail,messageId:inbound.messageId??event,approvedBy:"imap-worker",replyText:inbound.text,replyAt:inbound.date.toISOString(),sentiment:sentiments[classification]??"Unclear",threadId:run.id});
-          queueCrmJob(options.store,event+":status",run.id,"status",{hubspotId:hsId,email:prospectEmail,messageId:event+":status",approvedBy:"imap-worker",properties:{ctx_status:classification==="opt_out"?"Opted Out":"Replied",ctx_last_contact:inbound.date.toISOString()}});
-          queueCrmJob(options.store,event+":briefing",run.id,"briefing",{hubspotId:hsId,email:prospectEmail,messageId:event+":briefing",stage:classification,prospectQuote:inbound.text,agentBrief:"Prospect reply classified as "+classification+". Review the preserved conversation before consultation.",talkingPoints:["Address the prospect's explicit question.","Confirm any unresolved request from the conversation.","Use verified dossier and CRM observations."]});
-          saveCheckpoint();
+          flushInboundCrm(options.store);
           processedReplies.push({runId:run.id,email:inbound,classification});
           continue;
         }
-        saveCheckpoint();
         const { getHubSpotGateway } = await import("../../integrations/hubspot-gateway");
         const gateway = getHubSpotGateway();
 

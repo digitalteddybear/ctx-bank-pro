@@ -1,10 +1,17 @@
+import { DEFAULT_DELIVERY_LIMITS, deliveryLimitsSchema } from "@/lib/outreach-campaign-contract";
 import { randomUUID } from "node:crypto";
 import { OutreachStore } from "./store";
 
 // Seven full days at the requested 135/day pace cover 945 of 949 records;
 // the final four remain schedulable on day eight.
 export const CAMPAIGN_RAMP = [135, 135, 135, 135, 135, 135, 135, 4] as const;
-export const DAILY_EMAIL_CAP = 135;
+export const DAILY_EMAIL_CAP = DEFAULT_DELIVERY_LIMITS.dailyTotal;
+export function readDeliveryLimits(store:OutreachStore){
+  const row=store.db.prepare("SELECT value FROM outreach_preferences WHERE key='campaign'").get();
+  const value:unknown=row?JSON.parse(String(row.value)):{};
+  const limits=typeof value==='object'&&value!==null&&'deliveryLimits' in value?value.deliveryLimits:DEFAULT_DELIVERY_LIMITS;
+  return deliveryLimitsSchema.parse(limits);
+}
 
 export const PACING_CONFIG = {
   targetDispatches: 135,
@@ -91,6 +98,9 @@ export class OutreachScheduler {
       );
       CREATE TABLE IF NOT EXISTS sender_pacing (sender TEXT PRIMARY KEY, next_at INTEGER NOT NULL);
     `);
+    store.transaction(()=>{
+      if(!store.db.prepare("PRAGMA table_info(sender_pacing)").all().some(column=>column.name==="next_initial_at"))store.db.exec("ALTER TABLE sender_pacing ADD COLUMN next_initial_at INTEGER NOT NULL DEFAULT 0");
+    });
   }
   enqueue(input: { id: string; runId: string; sender: string; kind: DeliveryKind }, now = Date.now()) {
     const sender = input.sender.trim().toLowerCase();
@@ -104,22 +114,24 @@ export class OutreachScheduler {
   recover(now = Date.now()) {
     this.store.db.prepare("UPDATE delivery_queue SET state='uncertain',error='Worker stopped during delivery; reconcile before retry' WHERE state='sending' AND lease<?").run(now);
   }
-  claim(sender: string, rampDay: number, now = Date.now(), random = Math.random): ScheduledDelivery | undefined {
+  claim(sender: string, rampDay: number | undefined = undefined, now = Date.now(), random = Math.random): ScheduledDelivery | undefined {
     const window = sendingWindow(now);
     if (!window.open) return;
-    if (!Number.isInteger(rampDay) || rampDay < 0 || rampDay >= CAMPAIGN_RAMP.length) throw new Error("Invalid campaign sending day");
+    if (rampDay !== undefined && (!Number.isInteger(rampDay) || rampDay < 0 || rampDay >= CAMPAIGN_RAMP.length)) throw new Error("Invalid campaign sending day");
     const normalized = sender.trim().toLowerCase();
     return this.store.transaction(() => {
       this.recover(now);
       if (this.store.setting("paused") === "true" || this.store.setting("campaign-paused") === "true") return;
-      const pace = this.store.db.prepare("SELECT next_at FROM sender_pacing WHERE sender=?").get(normalized);
+      const pace = this.store.db.prepare("SELECT next_at,next_initial_at FROM sender_pacing WHERE sender=?").get(normalized);
       if (pace && Number(pace.next_at) > now) return;
       this.store.db.prepare("INSERT OR IGNORE INTO sender_days(sender,day) VALUES(?,?)").run(normalized, window.day);
       const budget = this.store.db.prepare("SELECT reserved,starts FROM sender_days WHERE sender=? AND day=?").get(normalized, window.day)!;
-      if (Number(budget.reserved) >= DAILY_EMAIL_CAP) return;
+      const limits=readDeliveryLimits(this.store);
+      const startLimit=rampDay===undefined?limits.dailyStarts:Math.min(limits.dailyStarts,CAMPAIGN_RAMP[rampDay]);
+      if (Number(budget.reserved) >= limits.dailyTotal) return;
       const rows = this.store.db.prepare("SELECT * FROM delivery_queue WHERE sender=? AND state='queued' AND due<=? ORDER BY CASE kind WHEN 'reply' THEN 0 WHEN 'followup' THEN 1 ELSE 2 END,due LIMIT 250").all(normalized, now);
       for (const row of rows) {
-        if (row.kind === "initial" && Number(budget.starts) >= CAMPAIGN_RAMP[rampDay]) continue;
+        if (row.kind === "initial" && (Number(budget.starts) >= startLimit || Number(pace?.next_initial_at??0)>now)) continue;
         const run = this.store.get(String(row.run_id));
         if(run.campaignId&&this.store.setting("campaign-paused:"+run.campaignId)==="true")continue;
         if (this.store.isSuppressed(run.prospect.email) || run.humanManaged || ["booked", "suppressed", "paused", "held", "escalated", "failed"].includes(run.status)) {
@@ -130,10 +142,10 @@ export class OutreachScheduler {
         const lease = now + 120_000;
         this.store.db.prepare("UPDATE delivery_queue SET state='sending',owner=?,lease=? WHERE id=?").run(owner, lease, row.id);
         this.store.db.prepare("UPDATE sender_days SET reserved=reserved+1,starts=starts+? WHERE sender=? AND day=?").run(row.kind === "initial" ? 1 : 0, normalized, window.day);
-        // Starts distributed over 5-6 hours with randomized 45-90s human pacing jitter
-        const targetDispatches = row.kind === "initial" ? CAMPAIGN_RAMP[rampDay] : DAILY_EMAIL_CAP;
-        const delay = calculateDispatchPacingDelay(targetDispatches, 5.5 * 3600 * 1000, random);
-        this.store.db.prepare("INSERT INTO sender_pacing VALUES(?,?) ON CONFLICT(sender) DO UPDATE SET next_at=excluded.next_at").run(normalized, now + delay);
+        // Shared sender pacing permits replies between separately paced campaign starts.
+        const delay=Math.round((PACING_CONFIG.minJitterSeconds+random()*(PACING_CONFIG.maxJitterSeconds-PACING_CONFIG.minJitterSeconds))*1000);
+        const nextInitial=row.kind==="initial"?now+calculateDispatchPacingDelay(startLimit,5.5*3600*1000,random):Number(pace?.next_initial_at??0);
+        this.store.db.prepare("INSERT INTO sender_pacing(sender,next_at,next_initial_at) VALUES(?,?,?) ON CONFLICT(sender) DO UPDATE SET next_at=excluded.next_at,next_initial_at=excluded.next_initial_at").run(normalized,now+delay,nextInitial);
         return { id: String(row.id), runId: String(row.run_id), sender: normalized, kind: row.kind as DeliveryKind, state: "sending", messageId: String(row.message_id), owner, lease };
       }
     });

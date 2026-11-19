@@ -1,3 +1,4 @@
+import { runReplyTemplate } from "@/lib/server/outreach/reply-template-store";
 import { renderReplyHtml } from "@/lib/server/outreach/transport/reply-html";
 import { deliveryOperations, resolveCrmJob, reconcileDelivery, retryDelivery } from "@/lib/server/outreach/production-delivery";
 import { timingSafeEqual } from "node:crypto";
@@ -34,6 +35,8 @@ export async function GET(request: NextRequest, context: Context) {
   if (!authorised(request)) return json({ error: "Operator authentication required; API disabled unless a token is configured" }, 401);
   const segments = (await context.params).segments ?? [];
   try {
+    if (segments.length===3 && segments[0]==="runs" && segments[2]==="reply-template")
+      return json({template:runReplyTemplate(outreachStore(),segments[1])});
     if(segments.join("/")==="operations")return json(deliveryOperations(outreachStore()));
     if (segments.join("/") === "telemetry") {
       const query = request.nextUrl.searchParams;
@@ -83,18 +86,26 @@ export async function GET(request: NextRequest, context: Context) {
         const errorRate = agentRuns.length ? countErrors / agentRuns.length * 100 : 0;
         return {id: agent, service: agent, environment, region: region === "all" ? "all regions" : region, instances: agentRuns.length, rpm: Math.round(agentRuns.length * 60000 / windowMs * 10) / 10, errorRate, p99: percentile(0.99), status: countErrors ? "critical" as const : agentRuns.some(run => ["held", "escalated", "paused"].includes(run.status)) ? "warning" as const : "healthy" as const, heartbeat: store.setting(`agent-heartbeat:${agent}`) ?? store.setting("worker-heartbeat") ?? null};
       });
+      const crmJobState = store.db.prepare("SELECT state FROM crm_delivery_jobs WHERE id=? AND run_id=?");
       const bookingAudit = matchingRuns.flatMap(run => store.events(run.id)
         .filter(event => event.kind === "cal_booking_reconciled" && run.booking?.status === "confirmed")
         .map(event => {
           const data = typeof event.data === "object" && event.data !== null ? event.data as Record<string, unknown> : {};
+          const currentState = (suffix: string, recorded: unknown) => {
+            if (typeof data.eventId === "string") {
+              const job = crmJobState.get(data.eventId + suffix, run.id);
+              if (typeof job?.state === "string") return job.state;
+            }
+            return typeof recorded === "string" ? recorded : "unavailable";
+          };
           return {
             runId: run.id,
             contactId: run.prospect.id.startsWith("lead-") ? run.prospect.id.slice("lead-".length) : "",
             bookingId: typeof data.bookingId === "string" ? data.bookingId : "",
             startsAt: run.booking?.startsAt ?? "",
             at: new Date(event.at).toISOString(),
-            crmStatus: typeof data.crmStatus === "string" ? data.crmStatus : "unavailable",
-            crmNote: typeof data.crmNote === "string" ? data.crmNote : "unavailable",
+            crmStatus: currentState(":status", data.crmStatus),
+            crmNote: currentState(":briefing", data.crmNote),
           };
         })
       ).filter(booking => booking.contactId && booking.bookingId && booking.startsAt).slice(0, 20);
@@ -161,7 +172,7 @@ const command = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve"), id: z.string(), draftHash: z.string(), actor: z.string().min(1) }).strict(),
   z.object({ action: z.literal("edit"), id: z.string(), draft: z.unknown() }).strict(),
   z.object({ action: z.literal("reject"), id: z.string(), actor: z.string(), reason: z.string() }).strict(),
-  z.object({ action: z.literal("reply"), id: z.string(), eventId: z.string(), text: z.string(), htmlTemplate: z.string().max(20000).optional() }).strict(),
+  z.object({ action: z.literal("reply"), id: z.string(), eventId: z.string(), text: z.string(), htmlTemplate: z.string().max(20000).optional(), baseTemplate: z.string().max(20000).optional() }).strict(),
   z.object({ action: z.literal("booking"), id: z.string(), event: z.unknown() }).strict(),
   z.object({ action: z.enum(["resume", "pause-run", "followup"]), id: z.string() }).strict(),
   z.object({ action: z.literal("pause"), scope: z.enum(["global", "campaign", ...AGENTS]), paused: z.boolean() }).strict(),
@@ -174,6 +185,7 @@ const command = z.discriminatedUnion("action", [
   z.object({ action: z.literal("takeover"), id: z.string(), reason: z.string().default("Operator manual takeover from dashboard") }).strict(),
   z.object({ action: z.literal("apply-inflection-action"), alertId: z.string().min(1).max(160), resolution: z.enum(["applied", "queued", "dismissed"]), notes: z.string().max(2000).optional() }).strict(),
 ]);
+class ReplyTemplateConflict extends Error {}
 export async function POST(request: NextRequest, context: Context) {
   if (!authorised(request)) return json({ error: "Operator authentication required" }, 401);
   if ((await context.params).segments?.length) return json({ error: "Post commands to /api/agents" }, 404);
@@ -265,13 +277,23 @@ export async function POST(request: NextRequest, context: Context) {
     if (c.action === "approve") e.approve(c.id, c.draftHash, c.actor);
     if (c.action === "edit") e.edit(c.id, c.draft);
     if (c.action === "reject") e.reject(c.id, c.actor, c.reason);
-    if (c.action === "reply") { if(c.htmlTemplate!==undefined){renderReplyHtml("Template preview",c.htmlTemplate);store.setSetting("reply-html-template:"+c.id,c.htmlTemplate);} e.reply(c.id,c.eventId,c.text); }
+    if (c.action === "reply") {
+      store.transaction(()=>{
+        const accepted=e.reply(c.id,c.eventId,c.text);
+        if(!accepted || c.htmlTemplate===undefined)return;
+        if(c.baseTemplate!==undefined && c.baseTemplate!==runReplyTemplate(store,c.id))
+          throw new ReplyTemplateConflict();
+        renderReplyHtml("Template preview",c.htmlTemplate);
+        store.setSetting("reply-html-template:"+c.id,c.htmlTemplate);
+      });
+    }
     if (c.action === "booking") e.booking(c.id, c.event);
     if (c.action === "resume") e.resume(c.id);
     if (c.action === "pause-run") e.pauseRun(c.id);
     if (c.action === "followup") e.followup(c.id);
     return json(store.get(c.id));
   } catch (error) {
+    if(error instanceof ReplyTemplateConflict)return json({error:"Reply template changed. Reopen the editor to load the saved design."},409);
     return json({ error: error instanceof z.ZodError ? "Invalid command fields" : "Command rejected; check workflow state, source versions and approval hash" }, 400);
   }
 }

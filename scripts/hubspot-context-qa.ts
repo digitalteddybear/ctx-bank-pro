@@ -61,3 +61,20 @@ test("full Phase 1 read scope does not expand the proposal allowlist",async()=>{
  try {const result=await syncPhase1(ctx,new Map([[id,email]]),client);assert.equal(result.results[0].status,"persisted_index_pending");assert.ok(ctx.contact(id));assert.throws(()=>ctx.propose({hubspotId:id,email,property:"investment_interest",value:"Metals",baseRevision:ctx.contact(id)!.snapshot.revision,sourceId:"reply-1",quote:"Metals",observedAt:new Date().toISOString()}),/Unknown contact/);}
  finally {store.close();if(previous===undefined)delete process.env.HUBSPOT_ACCESS_TOKEN;else process.env.HUBSPOT_ACCESS_TOKEN=previous;}
 });
+
+test("graph CRM observations follow repeat reads, errors and recovery", () => {
+  const {store,ctx}=setup();
+  try {
+    const original=snapshot();
+    ctx.publish(original,registry,null);
+    const observedAt="2030-01-01T00:00:00Z";
+    ctx.publish({...original,observedAt},registry,original.revision);
+    ctx.fail(lead.hubspotId,"Late failed request",original);
+    assert.equal(ctx.graphContexts().contexts.get(lead.hubspotId)?.observedAt,observedAt);
+    assert.deepEqual(ctx.graphContexts().contexts.get(lead.hubspotId),ctx.context(lead.hubspotId));
+    ctx.fail(lead.hubspotId,"Failed refresh");
+    assert.equal(ctx.graphContexts().contexts.size,0);
+    ctx.publish(original,registry,original.revision);
+    assert.equal(ctx.graphContexts().contexts.size,1);
+  } finally {store.close();}
+});

@@ -1,11 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { DISALLOWED_PLACEHOLDERS } from "./auth";
+import { deploymentSecret } from "./operator-session-secrets";
 
 const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 export function hasLocalWorkspaceAccess(request: NextRequest): boolean {
-  const token = process.env.CTX_OUTREACH_OPERATOR_TOKEN;
+  const token = deploymentSecret("CTX_OUTREACH_OPERATOR_TOKEN");
+  if (process.env.CTX_OUTREACH_OPERATOR_TOKEN_FILE && !token) return false;
   if (token) {
     const supplied = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
     if (DISALLOWED_PLACEHOLDERS.has(supplied.toLowerCase()) || DISALLOWED_PLACEHOLDERS.has(token.toLowerCase())) {

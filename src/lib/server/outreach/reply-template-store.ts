@@ -22,3 +22,10 @@ export function saveReplyTemplate(store: OutreachStore, scope: TemplateScope, te
     return saved;
   });
 }
+
+export function runReplyTemplate(store: OutreachStore, runId: string): string {
+  const run=store.get(runId);
+  const saved=store.setting("reply-html-template:"+runId);
+  const fallback=run.campaignId ? "" : store.setting("reply-html-template") ?? process.env.CTX_REPLY_HTML_TEMPLATE ?? "";
+  return String(saved ?? fallback);
+}

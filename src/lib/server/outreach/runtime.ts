@@ -1,3 +1,4 @@
+import { deliverOperatorNotifications } from "../operator-notification-delivery";
 import { reconcilePendingBookings } from './cal-reconciliation';
 import { materializeCampaignRuns, processProductionDelivery, processCrmJobs } from './production-delivery';
 import { loadRuntimeSender, loadProviderKeys, loadIntegrationSettings } from './runtime-settings';
@@ -9,7 +10,7 @@ import { ConfigurableModel, FixtureModel, outreachModelConfig } from "./models";
 import { seedFixtureSources, refreshSources } from "./sources";
 import { startPersistentImapListener } from "./transport/imap";
 
-type WorkerState = { lastOperationsAt?:number; sourceBusy?:boolean; sourceCheckAt?:number; configRevision?:string; started: boolean; busy: boolean; timer?: ReturnType<typeof setInterval>; imap?: ReturnType<typeof startPersistentImapListener> };
+type WorkerState = { notificationBusy?:boolean; notificationAt?:number; lastOperationsAt?:number; sourceBusy?:boolean; sourceCheckAt?:number; configRevision?:string; started: boolean; busy: boolean; timer?: ReturnType<typeof setInterval>; imap?: ReturnType<typeof startPersistentImapListener> };
 const runtime = globalThis as typeof globalThis & { __ctxOutreachWorker?: WorkerState };
 
 /** Boot the lightweight in-process worker when the dashboard first uses Agents. */
@@ -52,6 +53,10 @@ export function ensureOutreachWorker() {
         }
         store.setSetting("worker-heartbeat", String(Date.now()));
         processDueCallbacks(store);
+        if(!state.notificationBusy&&Date.now()-(state.notificationAt??0)>30000){
+          state.notificationBusy=true;state.notificationAt=Date.now();
+          void deliverOperatorNotifications(store).catch(()=>store.event("operations","notification_worker_error",{})).finally(()=>{state.notificationBusy=false;});
+        }
         if(Date.now()-(state.lastOperationsAt??0)>2000){
           state.lastOperationsAt=Date.now();
           await materializeCampaignRuns(store);

@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
   }
 
   const raw = await request.text();
-  if (raw.length > 10000) {
+  if (Buffer.byteLength(raw, "utf8") > 256000) {
     return Response.json({ error: "Request payload too large." }, { status: 413 });
   }
 

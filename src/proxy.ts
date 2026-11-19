@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deploymentSecret, workspaceSessionRole } from "./lib/server/operator-session";
 import { hasAdminProfile } from "./lib/server/ctx-profile-store";
+import { MIN_SECRET_LENGTH, safeEqualSecrets } from "./lib/server/auth";
 
 export async function proxy(request: NextRequest) {
   const path=request.nextUrl.pathname;
-  if(["/login","/login-card","/api/session","/api/ready","/api/webhooks/cal","/api/auth/openai/callback"].includes(path))return NextResponse.next();
+  if(["/login","/api/session","/api/ready","/api/webhooks/cal","/api/auth/openai/callback"].includes(path))return NextResponse.next();
   if(path==="/api/health"&&request.method==="GET")return NextResponse.next();
   const sessionRole=await workspaceSessionRole(request);
   if(sessionRole==="guest"){
@@ -25,8 +26,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login",request.url));
   }
   const operator=deploymentSecret("CTX_OUTREACH_OPERATOR_TOKEN");
-  const supplied=request.headers.get("authorization")?.replace(/^Bearer /i,"");
-  const serviceAccess=Boolean(operator.length>=32&&supplied===operator);
+  const supplied=request.headers.get("authorization")?.replace(/^Bearer /i,"") ?? "";
+  const serviceAccess=Boolean(operator.length>=MIN_SECRET_LENGTH && safeEqualSecrets(operator, supplied));
   const role=serviceAccess?"administrator":sessionRole;
   if(!role){
     if(path.startsWith("/api/"))return NextResponse.json({error:"Sign in to CTX."},{status:401});

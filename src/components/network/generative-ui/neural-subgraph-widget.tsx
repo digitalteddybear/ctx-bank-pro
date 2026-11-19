@@ -47,7 +47,7 @@ export function NeuralSubGraphWidget({ data }: { data: NeuralSubGraphData }) {
         <HStack justify="between" vAlign="center" wrap="wrap" gap={2}>
           <HStack gap={2} vAlign="center">
             <Icon icon={ShareIcon} size="md" color="accent" />
-            <VStack gap={0}>
+            <VStack gap={1}>
               <Text size="xsm" color="secondary" weight="semibold">
                 Neural Sub-Graph Explorer • Vector Traversal
               </Text>

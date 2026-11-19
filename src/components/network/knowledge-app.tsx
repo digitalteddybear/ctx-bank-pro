@@ -1,14 +1,11 @@
 "use client";
 
+import { OperatorNotificationListener } from "./operator-notification-listener";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
-  Bell,
-  BookOpenText,
-  Building2,
   Boxes,
-  ChevronDown,
   CircleDot,
   Database,
   FileArchive,
@@ -16,36 +13,28 @@ import {
   FileClock,
   FileText,
   GitBranch,
-  Home,
-  Menu,
   Network,
   PanelLeftOpen,
   Search,
   Server,
   Settings,
-  Bot,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { ClickableCard } from "@astryxdesign/core/ClickableCard";
 import { Heading, Text } from "@astryxdesign/core/Text";
-import { Button as AstryxButton } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
-import { SideNav, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
-import { Token } from "@astryxdesign/core/Token";
-import { BootSequence } from "./boot-sequence";
 import { CommandPalette } from "./command-palette";
 import { DocumentUpload } from "./document-upload";
-import { LeadColumns } from "./lead-columns";
-import { NeuralGraph } from "./neural-graph";
 import { NodeInspector } from "./node-inspector";
+import { ViewSkeleton } from "./view-skeleton";
+import { CompanyProfileOverlay, MetricCard } from "./dashboard-overview";
+import { useBackendSync, type SyncDocumentSummary, type SyncRuntimeStatus } from "@/hooks/use-backend-sync";
 import { calculateMetrics, getActiveGraph } from "@/lib/graph/engine";
 import { nodeTypeColors, nodeTypeLabels } from "@/lib/graph/palette";
 import { useGraphStore, type ViewMode } from "@/lib/graph/store";
-import type { GraphMetrics, GraphSnapshot, NodeType } from "@/lib/graph/types";
-import { Badge, Button, IconButton, Panel } from "@/components/ui/primitives";
-import { ThemeAwareBrand } from "@/components/ui/theme-aware-brand";
+import type { GraphMetrics, NodeType } from "@/lib/graph/types";
+import { Badge, Button, Panel } from "@/components/ui/primitives";
 import { ThemePreferenceControl } from "@/components/ui/theme-switch";
 import { AreaChart } from "@/components/dither-kit/area-chart";
 import { Area } from "@/components/dither-kit/area";
@@ -56,23 +45,23 @@ import { YAxis } from "@/components/dither-kit/y-axis";
 import { AppShell } from "@astryxdesign/core/AppShell";
 import { Card } from "@astryxdesign/core/Card";
 import { HStack, VStack } from "@astryxdesign/core/Stack";
-const ArchitectureView=dynamic(()=>import("@/components/templates/architecture/architecture-view").then(module=>module.ArchitectureView));
-const AgentsView=dynamic(()=>import("./agents-view").then(module=>module.AgentsView));
 import { ShellSideNavigation } from "./shell-side-navigation";
-import { MissionControlView } from "./mission-control-view";
-import { CatalogDashboardView } from "./catalog-dashboard-view";
-import { DashboardAlertRailView } from "./dashboard-alert-rail-view";
-const AISettingsView=dynamic(()=>import("./ai-settings-view").then(module=>module.AISettingsView));
-const AIChatConversationView=dynamic(()=>import("@/components/templates/ai-chat/ai-chat-conversation-view").then(module=>module.AIChatConversationView));
+import { WorkspaceDistortionStage } from "./chat-composer-fx";
 import { useAIChatStore } from "@/lib/ai-chat-store";
 
-const navItems = [
-  { id: "dashboard", label: "Home Dashboard", icon: Home },
-  { id: "network", label: "Knowledge Bank", icon: Network },
-  { id: "sources", label: "Documents & Sources", icon: Database },
-  { id: "agents", label: "Agents", icon: Bot },
-  { id: "architecture", label: "Architecture", icon: GitBranch },
-] as const;
+const LeadColumns = dynamic(() => import("./lead-columns").then((m) => m.LeadColumns), { loading: () => <ViewSkeleton /> });
+const NeuralGraph = dynamic(() => import("./neural-graph").then((m) => m.NeuralGraph), { loading: () => <ViewSkeleton /> });
+const MissionControlView = dynamic(() => import("./mission-control-view").then((m) => m.MissionControlView), { loading: () => <ViewSkeleton /> });
+const CatalogDashboardView = dynamic(() => import("./catalog-dashboard-view").then((m) => m.CatalogDashboardView), { loading: () => <ViewSkeleton /> });
+const DashboardAlertRailView = dynamic(() => import("./dashboard-alert-rail-view").then((m) => m.DashboardAlertRailView), { loading: () => <ViewSkeleton /> });
+const ArchitectureView = dynamic(() => import("@/components/templates/architecture/architecture-view").then((module) => module.ArchitectureView), { loading: () => <ViewSkeleton /> });
+const AgentsView = dynamic(() => import("./agents-view").then((module) => module.AgentsView), { loading: () => <ViewSkeleton /> });
+const AISettingsView = dynamic(() => import("./ai-settings-view").then((module) => module.AISettingsView), { loading: () => <ViewSkeleton /> });
+const AIChatConversationView = dynamic(() => import("@/components/templates/ai-chat/ai-chat-conversation-view").then((module) => module.AIChatConversationView), { loading: () => <ViewSkeleton /> });
+
+type RuntimeStatus = SyncRuntimeStatus;
+type DocumentSummary = SyncDocumentSummary;
+
 
 const pageTitleByView = {
   dashboard: "Home",
@@ -89,97 +78,7 @@ const documentProcessingChartConfig = {
   documents: { label: "Documents", color: "blue" },
 } as const;
 
-interface DocumentSummary {
-  id: string;
-  originalName: string;
-  extension: string;
-  sizeBytes: number;
-  status: "ready_for_agent" | "processed" | "failed";
-  uploadedAt: string;
-  completedAt?: string;
-  extractedCharacters: number;
-  chunkCount: number;
-  sourceNodeId?: string;
-  error?: string;
-}
 
-interface RuntimeStatus {
-  corpus: {
-    sourceCount: number;
-    textualCount: number;
-    totalBytes: number;
-    indexedAt: string | null;
-    byExtension: Record<string, number>;
-  };
-  ingestion: {
-    total: number;
-    pending: number;
-    processed: number;
-    failed: number;
-  };
-  persistence: string;
-}
-
-function CompanyProfileOverlay({
-  isOpen,
-  onOpenChange,
-}: {
-  isOpen: boolean;
-  onOpenChange: (isOpen: boolean) => void;
-}) {
-  return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} purpose="info" width={400}>
-      <DialogHeader
-        onOpenChange={onOpenChange}
-        startContent={<Building2 size={18} />}
-        subtitle="Organization profile"
-        title="ASP Private Capital"
-      />
-      <p>ASP Private Capital is the active organization for this Context Bank workspace.</p>
-      <dl>
-        <div><dt>Organization</dt><dd>ASP Private Capital</dd></div>
-        <div><dt>Workspace</dt><dd>Context Bank</dd></div>
-      </dl>
-    </Dialog>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  accent,
-  onClick,
-}: {
-  label: string;
-  value: string | number;
-  detail: string;
-  icon: typeof Activity;
-  accent: string;
-  onClick: () => void;
-}) {
-  return (
-    <ClickableCard
-      className="panel metric-card"
-      label={`${label}: ${value}. ${detail}`}
-      onClick={onClick}
-      padding={4}
-    >
-      <div className="metric-card__top">
-        <span className="metric-card__label">{label}</span>
-        <span className="metric-card__icon" style={{ color: accent }}>
-          <Icon size={16} />
-        </span>
-      </div>
-      <Heading level={2}>{value}</Heading>
-      <span className="metric-card__detail">
-        <span style={{ backgroundColor: accent }} />
-        {detail}
-      </span>
-    </ClickableCard>
-  );
-}
 
 function formatTimestamp(value: string | null | undefined) {
   if (!value) return "Not loaded";
@@ -698,8 +597,6 @@ export function KnowledgeApp() {
   const setCommandOpen = useGraphStore((state) => state.setCommandOpen);
   const setSnapshot = useGraphStore((state) => state.setSnapshot);
   const setSyncState = useGraphStore((state) => state.setSyncState);
-  const [booted, setBooted] = useState(false);
-  const [bootProgress, setBootProgress] = useState(0);
   const sidebarOpen = useGraphStore((state) => state.sidebarOpen);
   const toggleSidebar = useGraphStore((state) => state.toggleSidebar);
   const [companyProfileOpen, setCompanyProfileOpen] = useState(false);
@@ -738,74 +635,21 @@ export function KnowledgeApp() {
     }
   }, [profileReady, profileRole, setSelectedChatId, setViewMode, viewMode]);
 
-  const syncBackend = useCallback(async () => {
-    if (!profileReady) return;
-    try {
-      if (profileRole === "guest") {
-        const response = await fetch("/api/status", { cache: "no-store" });
-        if (!response.ok) throw new Error("Backend sync failed");
-        setRuntime(await response.json() as RuntimeStatus);
-        return;
-      }
-      const [graphResponse, statusResponse, documentsResponse] = await Promise.all([
-        fetch("/api/graph", { cache: "no-store" }),
-        fetch("/api/status", { cache: "no-store" }),
-        fetch("/api/documents", { cache: "no-store" }),
-      ]);
-      if (!graphResponse.ok || !statusResponse.ok || !documentsResponse.ok) {
-        throw new Error("Backend sync failed");
-      }
-      const [graph, status, ingestionDocuments] = await Promise.all([
-        graphResponse.json() as Promise<GraphSnapshot>,
-        statusResponse.json() as Promise<RuntimeStatus>,
-        documentsResponse.json() as Promise<DocumentSummary[]>,
-      ]);
-      setSnapshot(graph);
-      setRuntime(status);
-      setDocuments(ingestionDocuments);
-      window.dispatchEvent(new Event("ctx:backend-updated"));
-    } catch {
-      setSyncState("error");
-    }
-  }, [profileReady, profileRole, setRuntime, setSnapshot, setSyncState]);
-
-  useEffect(() => {
-    if (!profileReady) return;
-    const initialSync = window.setTimeout(() => void syncBackend(), 0);
-    const interval = window.setInterval(() => void syncBackend(), 4_000);
-    const onFocus = () => void syncBackend();
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("ctx:backend-sync", onFocus);
-    return () => {
-      window.clearTimeout(initialSync);
-      window.clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("ctx:backend-sync", onFocus);
-    };
-  }, [profileReady, syncBackend]);
+  const { syncBackend } = useBackendSync({
+    profileReady,
+    profileRole,
+    viewMode,
+    hasSnapshot: snapshot.nodes.length > 0,
+    hasDocuments: documents.length > 0,
+    setSnapshot,
+    setRuntime,
+    setDocuments,
+    setSyncState,
+  });
 
   useEffect(() => {
     if (profileReady && profileRole === "administrator") hydrateChats();
   }, [hydrateChats, profileReady, profileRole]);
-
-  useEffect(() => {
-    const start = Date.now();
-    const duration = 900;
-    const tick = () => {
-      const progress = Math.min(1, (Date.now() - start) / duration);
-      setBootProgress(progress);
-    };
-    tick();
-    const interval = window.setInterval(tick, 50);
-    const completion = window.setTimeout(() => {
-      setBootProgress(1);
-      setBooted(true);
-    }, duration);
-    return () => {
-      window.clearInterval(interval);
-      window.clearTimeout(completion);
-    };
-  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -824,8 +668,8 @@ export function KnowledgeApp() {
 
   return (
     <>
-      <AnimatePresence>{!booted && <BootSequence progress={bootProgress} />}</AnimatePresence>
-      <div className={`app-shell ${booted ? "is-ready" : ""}`} style={{ height: "100vh", overflow: "hidden" }}>
+      {profileReady&&profileRole==="administrator"&&<OperatorNotificationListener/>}
+      <div className="app-shell is-ready" style={{ height: "100vh", overflow: "hidden" }}>
         <AppShell
           variant="wash"
           contentPadding={0}
@@ -880,6 +724,7 @@ export function KnowledgeApp() {
                 <kbd style={{ fontSize: "10px", opacity: 0.6, background: "var(--secondary)", padding: "2px 5px", borderRadius: "4px" }}>⌘B</kbd>
               </button>
             )}
+            <WorkspaceDistortionStage>
             {viewMode === "ai-chat" && profileRole === "administrator" && <AIChatConversationView conversationId={selectedChatId} onMissionControl={() => { setSelectedChatId(null); setViewMode("dashboard"); window.history.pushState({}, "", "/?view=dashboard"); }} />}
             {viewMode === "dashboard" && (
               <div
@@ -932,6 +777,7 @@ export function KnowledgeApp() {
             )}
             {viewMode === "catalog" && <CatalogDashboardView />}
             {viewMode === "ai-settings" && <div className="ai-settings-workspace-wrap"><AISettingsView /></div>}
+            </WorkspaceDistortionStage>
           </div>
         </AppShell>
 

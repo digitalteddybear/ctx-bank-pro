@@ -5,7 +5,6 @@ import {
   BookOpenText,
   Bot,
   Boxes,
-  Building2,
   ChevronDown,
   Database,
   GitBranch,
@@ -14,18 +13,15 @@ import {
   PanelLeftClose,
   Search,
   Settings,
-  Sparkles,
-  Users,
   MessageSquareText,
   Trash2,
 } from "lucide-react";
-import { SideNav, SideNavItem, SideNavSection, SideNavHeading } from "@astryxdesign/core/SideNav";
+import { SideNav, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Divider } from "@astryxdesign/core/Divider";
 import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
-import { Token } from "@astryxdesign/core/Token";
 import { Button as AstryxButton } from "@astryxdesign/core/Button";
 import { ThemeAwareBrand } from "@/components/ui/theme-aware-brand";
 import { ThemePreferenceControl } from "@/components/ui/theme-switch";

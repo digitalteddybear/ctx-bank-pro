@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CtxAgentError, ctxAgentProviderStatus, runCtxAppAgent } from '@/lib/server/ctx-app-agent';
+import { hasLocalWorkspaceAccess } from '@/lib/server/local-workspace-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,12 +10,12 @@ function sameOrigin(request:NextRequest) {
 }
 
 export async function GET(request:NextRequest) {
-  if(!sameOrigin(request)) return NextResponse.json({error:'Same-origin access required.'},{status:403});
+  if(!sameOrigin(request) || !hasLocalWorkspaceAccess(request)) return NextResponse.json({error:'Local same-origin access required.'},{status:403});
   return NextResponse.json(await ctxAgentProviderStatus(),{headers:{'Cache-Control':'no-store'}});
 }
 
 export async function POST(request:NextRequest) {
-  if(!sameOrigin(request)) return NextResponse.json({error:'Same-origin access required.'},{status:403});
+  if(!sameOrigin(request) || !hasLocalWorkspaceAccess(request)) return NextResponse.json({error:'Local same-origin access required.'},{status:403});
   if(!request.headers.get('content-type')?.startsWith('application/json')) return NextResponse.json({error:'JSON required.'},{status:415});
   try {
     const raw=await request.text();

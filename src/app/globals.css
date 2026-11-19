@@ -148,7 +148,16 @@
   --inspector-width: 370px;
   --content-max-width: 1500px;
   --layout-gap: 20px;
-  --panel-radius: 8px;
+  --panel-radius: 5px;
+  --radius-small: 3px;
+  --radius-medium: 5px;
+  --radius-large: 9px;
+  --radius-xl: 13px;
+  --radius-page: 25px;
+  --radius-chat: 25px;
+  --radius-container: 9px;
+  --radius-element: 5px;
+  --radius-inner: 2px;
   --control-height: 38px;
   --control-height-compact: 34px;
   --shadow-xl: none;
@@ -658,9 +667,11 @@ kbd {
   width: 8px;
 }
 
-.button {
+.button,
+.astryx-button:not(.astryx-icon-button):not(.astryx-chat-send-button):not([data-icon-only="true"]) {
   align-items: center;
-  border-radius: 6px;
+  border-radius: 5px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
   cursor: pointer;
   display: inline-flex;
   font-size: 13px;
@@ -671,9 +682,101 @@ kbd {
   overflow: hidden;
   transition: 150ms ease;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
-.button .button__content {
+.astryx-chat-send-button,
+.astryx-chat-composer .astryx-chat-send-button,
+.astryx-chat-composer button[type="submit"] {
+  border-radius: 9999px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  width: 34px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.ai-chat-landing .astryx-chat-composer {
+  --radius-chat: 22px;
+  --_chat-composer-radius: 22px;
+}
+
+.ai-chat-landing .astryx-chat-composer > div:last-child {
+  border: 1px solid color-mix(in srgb, var(--border-strong) 50%, transparent) !important;
+  border-radius: 22px !important;
+}
+
+.ai-chat-landing .astryx-chat-composer button[aria-label="CTX App Agent"],
+.ai-chat-landing .astryx-chat-composer button[aria-label^="Agent: "] {
+  padding-left: 5px !important;
+  padding-right: 6px !important;
+  min-width: 0 !important;
+}
+
+.ai-chat-landing .button,
+.ai-chat-landing .astryx-button,
+.ai-chat-landing .astryx-button:not(.astryx-icon-button):not(.astryx-chat-send-button):not([data-icon-only="true"]),
+.ai-chat-landing .astryx-chat-send-button,
+.ai-chat-landing button[type="submit"] {
+  box-shadow: none !important;
+}
+
+/* Carbon grey selected/open surface with slight drop shadow so active widgets lift above the chat surface */
+.ai-chat-landing button[aria-pressed="true"],
+.ai-chat-landing .astryx-chat-composer button[aria-expanded="true"] {
+  background: var(--secondary) !important;
+  color: var(--foreground) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* 50% opacity stroke and unified radius around all popover & dropdown menu widget boxes */
+.astryx-popover,
+.astryx-dropdown-menu,
+.model-selector-popover-content {
+  border: 1px solid color-mix(in srgb, var(--border-strong) 50%, transparent) !important;
+  border-radius: var(--radius-large) !important;
+}
+
+/* Compact inner padding for the model selector popover while keeping default Astryx popover surface/radius */
+.model-selector-popover-content {
+  padding: 10px 12px !important;
+}
+
+/* Unified peer-control geometry across ALL Buttons, Selectors, TextInputs, NumberInputs, and SegmentedControls */
+.astryx-selector,
+.astryx-text-input,
+.astryx-number-input {
+  box-sizing: border-box !important;
+}
+
+.astryx-selector.sm,
+.astryx-selector[data-size="sm"],
+.astryx-text-input.sm,
+.astryx-text-input[data-size="sm"],
+.astryx-number-input.sm,
+.astryx-number-input[data-size="sm"] {
+  height: var(--control-height-compact) !important;
+  min-height: var(--control-height-compact) !important;
+  border-radius: 4px !important;
+}
+
+.astryx-selector.md,
+.astryx-selector[data-size="md"],
+.astryx-selector:not([data-size]):not(.sm),
+.astryx-text-input.md,
+.astryx-text-input[data-size="md"],
+.astryx-text-input:not([data-size]):not(.sm),
+.astryx-number-input.md,
+.astryx-number-input[data-size="md"],
+.astryx-number-input:not([data-size]):not(.sm) {
+  height: var(--control-height) !important;
+  min-height: var(--control-height) !important;
+  border-radius: 5px !important;
+}
+
+.button .button__content,
+.astryx-button .button__content {
   align-items: center;
   display: inline-flex;
   flex-direction: row;
@@ -683,29 +786,73 @@ kbd {
   white-space: nowrap;
 }
 
-.button svg {
+.button svg,
+.astryx-button svg {
   flex: 0 0 auto;
 }
 
-.button--md {
+.button--md,
+.astryx-button.md:not(.astryx-icon-button):not(.astryx-chat-send-button):not([data-icon-only="true"]),
+.astryx-button[data-size="md"]:not(.astryx-icon-button):not(.astryx-chat-send-button):not([data-icon-only="true"]),
+.astryx-button:not([data-size]):not(.sm):not(.button--sm):not(.astryx-icon-button):not(.astryx-chat-send-button):not([data-icon-only="true"]) {
   height: var(--control-height);
+  min-height: var(--control-height);
   padding: 0 14px;
 }
 
-.button--sm {
+.button--sm,
+.astryx-button.sm:not(.astryx-icon-button):not(.astryx-chat-send-button):not([data-icon-only="true"]),
+.astryx-button[data-size="sm"]:not(.astryx-icon-button):not(.astryx-chat-send-button):not([data-icon-only="true"]) {
   height: var(--control-height-compact);
+  min-height: var(--control-height-compact);
   padding: 0 11px;
+  font-size: 12px;
+  border-radius: 6px;
 }
 
 .button--primary {
   background: var(--primary);
-  box-shadow: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
   color: var(--primary-foreground);
 }
 
 /* Keep Astryx switches in AI Settings aligned with the app's blue primary action. */
 .ai-settings-workspace-wrap .astryx-switch[data-checked="checked"] {
   background-color: var(--primary) !important;
+}
+
+.thinking-effort-slider {
+  --color-background-accent: var(--primary);
+  --color-background-accent-hover: var(--primary);
+  --color-border-accent: var(--primary);
+}
+
+.thinking-effort-slider [style*="left: 0%"][style*="width:"],
+.thinking-effort-slider [role="slider"] {
+  background-color: var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+
+.thinking-effort-slider [role="slider"] {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+/* Inset the entire gauge container (track, thumb, ticks, and marks together) so the circle stays centered on the line */
+.thinking-effort-slider div:has(> .astryx-slider-track) {
+  margin: 10px 10px 18px 10px !important;
+}
+
+.thinking-effort-slider [data-testid="slider-mark-label"] {
+  margin-top: 6px !important;
+}
+
+.thinking-effort-slider [data-testid="slider-mark-label"][data-mark-value="0"] {
+  transform: translateX(-20%) !important;
+}
+
+.thinking-effort-slider [data-testid="slider-mark-label"][data-mark-value="3"] {
+  transform: translateX(-80%) !important;
 }
 
 .button--primary:hover {
@@ -3030,20 +3177,22 @@ html[data-theme="dark"] .workspace--network .neural-graph--orbital { background:
 .astryx-segmented-control.sm,
 .astryx-segmented-control[data-size="sm"],
 [role="radiogroup"][data-size="sm"] {
-  min-height: 32px !important;
+  height: var(--control-height-compact) !important;
+  min-height: var(--control-height-compact) !important;
   padding: 3px !important;
   gap: 3px !important;
-  border-radius: 7px !important;
+  border-radius: 4px !important;
+  box-sizing: border-box !important;
 }
 
 .astryx-segmented-control-item.sm,
 [role="radiogroup"][data-size="sm"] > [role="radio"] {
-  height: 24px !important;
-  min-height: 24px !important;
+  height: 26px !important;
+  min-height: 26px !important;
   min-width: 58px !important;
-  padding-inline: 8px !important;
+  padding-inline: 10px !important;
   font-size: 12px !important;
-  border-radius: 5px !important;
+  border-radius: 2px !important;
 }
 
 .architecture-view svg { width: var(--architecture-icon-size); height: var(--architecture-icon-size); flex-shrink: 0; }

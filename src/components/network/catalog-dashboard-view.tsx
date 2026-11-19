@@ -561,7 +561,7 @@ export function CatalogDashboardView() {
                     </td>
 
                     <td style={{ padding: "14px 16px", verticalAlign: "top" }}>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", maxWidth: "320px" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", maxWidth: "320px" }}>
                         {feat.instructionalTags.map((tag) => (
                           <button
                             key={tag}

@@ -1,7 +1,7 @@
 import { contactMemory } from './contact-memory';
 import { callbackTask, relativeCallback, saveCallback } from "./callbacks";
 import { arrangeBooking, delegatedRequest } from "./delegated-booking";
-import { conversationSignals, hasRoleDisclosure, normaliseReply, repeatsAnswer } from "./conversation-policy";
+import { conversationSignals, normaliseReply, repeatsAnswer } from "./conversation-policy";
 import { HubSpotContextStore } from "../integrations/hubspot-context";
 import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -416,15 +416,27 @@ export class OutreachEngine {
           sandbox: snapshot.sandbox,
           noExternalActions: snapshot.sandbox,
         };
+        const traceSummary = {
+          stage: job.stage,
+          runId: snapshot.id,
+          classification: snapshot.classification,
+          intent: snapshot.intent,
+          messagePhase: context.messagePhase,
+          transcriptTurns: snapshot.transcript.length,
+          sourceCount: sources.length,
+          synthetic: snapshot.synthetic,
+          sandbox: snapshot.sandbox,
+        };
         const tracedStageInvoke = traceable(
-          async (stage: Exclude<Stage, "dispatch">, ctx: typeof context) => this.model.invoke(stage, ctx),
+          async (stage: Exclude<Stage, "dispatch">, _summary: typeof traceSummary) =>
+            this.model.invoke(stage, context),
           {
             name: `outreach-${job.stage}`,
             run_type: "chain",
             project_name: process.env.LANGSMITH_PROJECT || "ctx-local",
           }
         );
-        result = responseSchemas[job.stage].parse(await tracedStageInvoke(job.stage, context));
+        result = responseSchemas[job.stage].parse(await tracedStageInvoke(job.stage, traceSummary));
       }
     } catch (error) {
       issue = error instanceof Error && error.message.startsWith("COMPLIANCE_HOLD:") ? error.message : "MODEL_UNAVAILABLE_OR_INVALID_OUTPUT";

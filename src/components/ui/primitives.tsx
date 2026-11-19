@@ -6,6 +6,8 @@ import { Button as AstryxButton } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
 import { IconButton as AstryxIconButton } from "@astryxdesign/core/IconButton";
 import { Skeleton as AstryxSkeleton } from "@astryxdesign/core/Skeleton";
+export { CtxIcon, type CtxIconProps } from "./ctx-icon";
+export { CtxFeatureLabel, type CtxFeatureLabelProps } from "./ctx-feature-label";
 
 export function cx(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(" ");
@@ -35,21 +37,34 @@ export function IconButton({
   active?: boolean;
   children: ReactNode;
 }) {
-  return <AstryxIconButton {...props} className={cx("icon-button", active && "is-active", className)} icon={children} label={label} />;
+  return (
+    <AstryxIconButton
+      {...props}
+      className={cx("icon-button", active && "is-active", className)}
+      icon={children}
+      label={label}
+    />
+  );
 }
 
 export function Button({
   variant = "primary",
   size = "md",
   loading,
+  startIcon,
+  endIcon,
   children,
   className,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "outline";
   size?: "sm" | "md";
   loading?: boolean;
+  startIcon?: ReactNode;
+  endIcon?: ReactNode;
 }) {
+  const astryxVariant = variant === "danger" ? "destructive" : variant === "outline" ? "secondary" : variant;
+
   return (
     <AstryxButton
       {...props}
@@ -58,9 +73,13 @@ export function Button({
       isLoading={loading}
       label={labelFromChildren(children)}
       size={size}
-      variant={variant === "danger" ? "destructive" : variant}
+      variant={astryxVariant}
     >
-      <span className="button__content">{children}</span>
+      <span className="button__content inline-flex items-center gap-1.5">
+        {startIcon && <span className="button__start-icon flex items-center shrink-0">{startIcon}</span>}
+        {children}
+        {endIcon && <span className="button__end-icon flex items-center shrink-0">{endIcon}</span>}
+      </span>
     </AstryxButton>
   );
 }
@@ -70,12 +89,26 @@ export function Badge({
   children,
   className,
 }: {
-  tone?: "neutral" | "success" | "warning" | "danger" | "accent" | "cyan";
+  tone?: "neutral" | "success" | "warning" | "danger" | "accent" | "cyan" | "brand";
   children: ReactNode;
   className?: string;
 }) {
-  const variant = tone === "danger" ? "error" : tone === "accent" ? "blue" : tone;
-  return <AstryxBadge className={cx("badge", `badge--${tone}`, className)} label={children} variant={variant} />;
+  const variant =
+    tone === "danger"
+      ? "error"
+      : tone === "accent" || tone === "brand"
+      ? "blue"
+      : tone === "cyan"
+      ? "info"
+      : tone;
+
+  return (
+    <AstryxBadge
+      className={cx("badge", `badge--${tone}`, className)}
+      label={children}
+      variant={variant as "neutral" | "success" | "warning" | "error" | "blue" | "info"}
+    />
+  );
 }
 
 export function Panel({
@@ -83,7 +116,11 @@ export function Panel({
   children,
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
-  return <Card {...props} className={cx("panel", className)} padding={4}>{children}</Card>;
+  return (
+    <Card {...props} className={cx("panel ctx-card-standard", className)} padding={4}>
+      {children}
+    </Card>
+  );
 }
 
 export function Skeleton({ className }: { className?: string }) {

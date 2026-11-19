@@ -158,8 +158,8 @@ export function LeadQualificationWidget({ data }: { data: LeadQualificationData 
                     gap: '8px',
                   }}
                 >
-                  <VStack gap={0}>
-                    <Text size="sm" weight="medium">
+                  <VStack gap={1}>
+                    <Text weight="medium" size="sm">
                       {cite.title}
                     </Text>
                     <Text size="xsm" color="secondary">

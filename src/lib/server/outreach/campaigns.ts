@@ -1,9 +1,10 @@
+import { crmEmailOptOut } from '../integrations/hubspot-context';
 import { aiSettingsSchema } from '@/lib/ai-settings';
 import { saveReplyTemplate } from './reply-template-store';
 import { randomUUID } from 'node:crypto';
 import { loadLeadGraph } from '../lead-corpus';
 import { OutreachStore, hash } from './store';
-import { CAMPAIGN_RAMP, DAILY_EMAIL_CAP } from './scheduler';
+import { readDeliveryLimits } from './scheduler';
 import { campaignPreferencesSchema, campaignInputSchema, campaignSummarySchema, type campaignSegmentSchema } from '@/lib/outreach-campaign-contract';
 import { z } from 'zod';
 import type { KnowledgeNode } from '@/lib/graph/types';
@@ -45,6 +46,16 @@ export class CampaignRegistry {
       return batch;
     });
   }
+  private crmOptOutIds(){
+    const ids=new Set<string>();
+    if(!this.store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='crm_contacts'").get())return ids;
+    const rows=this.store.db.prepare("SELECT id,json_extract(data,'$.properties.hs_email_optout') AS optout,json_extract(data,'$.properties.ctx_status') AS status FROM crm_contacts").all();
+    for(const row of rows){
+      if(crmEmailOptOut({hs_email_optout:String(row.optout??""),ctx_status:String(row.status??"")}))
+        ids.add("lead-"+row.id);
+    }
+    return ids;
+  }
   async overview(){
     const nodes=(await loadLeadGraph()).nodes.filter(n=>n.id.startsWith('lead-')&&!n.deletedAt);
     const hasCrmTable=Boolean(this.store.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='crm_contacts'").get());
@@ -53,12 +64,16 @@ export class CampaignRegistry {
     const crmIndexed=new Set(crmRows.filter(r=>r.index_state==="ready").map(r=>String(r.id)));
     const enrolled=new Set(this.store.db.prepare("SELECT lead_id FROM campaign_enrollments WHERE state!='cancelled'").all().map(r=>String(r.lead_id)));
     const enrolledEmails=new Set(this.store.db.prepare("SELECT email FROM campaign_enrollments WHERE state!='cancelled'").all().map(r=>String(r.email)));
+    const crmOptOuts=this.crmOptOutIds();
     const summaries=cohorts.map(cohort=>{
       const matching=nodes.filter(cohort.match);let suppressed=0,existing=0,available=0;
-      for(const node of matching){const address=email(node);if(this.store.isSuppressed(address))suppressed++;else if(enrolled.has(node.id)||enrolledEmails.has(address))existing++;else if(address)available++;}
+      for(const node of matching){const address=email(node);if(crmOptOuts.has(node.id)||this.store.isSuppressed(address))suppressed++;else if(enrolled.has(node.id)||enrolledEmails.has(address))existing++;else if(address)available++;}
       return {id:cohort.id,label:cohort.label,total:matching.length,available,suppressed,enrolled:existing,held:available,crmSynced:matching.filter(n=>crmSynced.has(n.id.slice(5))).length,crmIndexed:matching.filter(n=>crmIndexed.has(n.id.slice(5))).length};
     });
-    return {cohorts:summaries,batches:this.list(),ramp:[...CAMPAIGN_RAMP],totalEmailCap:DAILY_EMAIL_CAP,readiness:['Contact permission records required.','Existing HubSpot Contact ID and matching email required.']};
+    const limits = readDeliveryLimits(this.store);
+    const ramp = Array.from({ length: Math.ceil(nodes.length / limits.dailyStarts) }, (_, day) =>
+      Math.min(limits.dailyStarts, nodes.length - day * limits.dailyStarts));
+    return {cohorts:summaries,batches:this.list(),ramp,totalEmailCap:limits.dailyTotal,readiness:['Contact permission records required.','Existing HubSpot Contact ID and matching email required.']};
   }
   async templateContacts(segment:Segment){
     const cohort=cohorts.find(item=>item.id===segment)!;
@@ -74,10 +89,10 @@ export class CampaignRegistry {
     const preview=interpolateOpeningMessage(template,fields);
     return {leadId:node.id,leadName:node.label,...preview};
   }
-  preferences(){const row=this.store.db.prepare("SELECT value FROM outreach_preferences WHERE key='campaign'").get();return row?campaignPreferencesSchema.parse(JSON.parse(String(row.value))):{openingMessage:"",standardFooter:"",replyHtmlTemplate:"",replyObjectives:["answer-questions"],replyRules:[{id:"tone",enabled:true},{id:"no-advice",enabled:true},{id:"no-promises",enabled:true},{id:"no-pressure",enabled:true},{id:"use-evidence",enabled:true},{id:"opt-out",enabled:true},{id:"liaison-role",enabled:true}],updatedAt:null};}
+  preferences(){const row=this.store.db.prepare("SELECT value FROM outreach_preferences WHERE key='campaign'").get();return campaignPreferencesSchema.parse(row?JSON.parse(String(row.value)):{openingMessage:"",standardFooter:"",replyHtmlTemplate:"",replyObjectives:["answer-questions"],replyRules:[{id:"tone",enabled:true},{id:"no-advice",enabled:true},{id:"no-promises",enabled:true},{id:"no-pressure",enabled:true},{id:"use-evidence",enabled:true},{id:"opt-out",enabled:true},{id:"liaison-role",enabled:true}],updatedAt:null});}
   savePreferences(raw:unknown){
-    const value=campaignPreferencesSchema.omit({updatedAt:true}).strict().parse(raw);
-    return this.store.transaction(()=>{const stored={...value,updatedAt:new Date().toISOString()};saveReplyTemplate(this.store,"campaign",stored.replyHtmlTemplate);this.store.db.prepare("INSERT INTO outreach_preferences VALUES ('campaign',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at").run(JSON.stringify(stored),stored.updatedAt);return stored;});
+    const value=campaignPreferencesSchema.omit({updatedAt:true}).extend({selection:campaignPreferencesSchema.shape.selection.removeDefault().optional(),deliveryLimits:campaignPreferencesSchema.shape.deliveryLimits.removeDefault().optional()}).strict().parse(raw);
+    return this.store.transaction(()=>{const stored={...value,selection:value.selection??this.preferences().selection,deliveryLimits:value.deliveryLimits??this.preferences().deliveryLimits,updatedAt:new Date().toISOString()};saveReplyTemplate(this.store,"campaign",stored.replyHtmlTemplate);this.store.db.prepare("INSERT INTO outreach_preferences VALUES ('campaign',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at").run(JSON.stringify(stored),stored.updatedAt);return stored;});
   }
   async start(raw:unknown){
     const input=campaignInputSchema.parse(raw);const digest=hash(input);
@@ -95,7 +110,8 @@ export class CampaignRegistry {
       }
       this.store.setSetting('campaign-launch:'+id,JSON.stringify(input));
       this.store.setSetting('campaign-settings:'+id,JSON.stringify(this.preferences()));
-      for(const node of nodes){if(selected>=input.batchSize)break;const address=email(node);if(!address||this.store.isSuppressed(address))continue;
+      const crmOptOuts=this.crmOptOutIds();
+      for(const node of nodes){if(selected>=input.batchSize)break;const address=email(node);if(!address||crmOptOuts.has(node.id)||this.store.isSuppressed(address))continue;
         const result=this.store.db.prepare("INSERT OR IGNORE INTO campaign_enrollments(lead_id,email,campaign_id,state,reason) VALUES(?,?,?,'held','Contact permission records required') ON CONFLICT(lead_id) DO UPDATE SET email=excluded.email,campaign_id=excluded.campaign_id,state=excluded.state,reason=excluded.reason WHERE campaign_enrollments.state='cancelled'").run(node.id,address,id);if(input.permissionGranted)this.store.db.prepare("UPDATE campaign_enrollments SET state='queued',reason='' WHERE lead_id=? AND campaign_id=?").run(node.id,id);selected+=Number(result.changes);
       }
       const batch={id,requested:input.batchSize,selected,segment:input.segment,mode:input.mode,status:input.permissionGranted?'queued' as const:'held' as const,createdAt:new Date().toISOString(),reason:selected?(input.permissionGranted?null:'Contact permission records required. No emails have been queued.'):'No unallocated contacts available in this cohort.'};

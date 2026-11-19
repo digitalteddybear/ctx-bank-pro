@@ -59,9 +59,8 @@ export async function loadLeadGraph(): Promise<GraphSnapshot> {
   ))).flat().sort();
   if (!files.length) throw new Error(`No retained lead dossiers found in ${leadCorpusRoot}`);
   const stats = await mapWithConcurrency(files, (file) => fs.stat(path.join(leadCorpusRoot, file)));
-  const crm = hubspotContext();
-  const crmRecords = crm.snapshots();
-  const crmSignature = crmRecords.map(r => `${r.hubspotId}:${r.revision}:${crm.contact(r.hubspotId)?.indexState}`).join("|");
+  const {contexts,schemaVersion}=hubspotContext().graphContexts();
+  const crmSignature=JSON.stringify([schemaVersion,...Array.from(contexts,([id,c])=>[id,c.revision,c.observedAt,c.indexState])]);
   const signature = createHash("sha256").update(files.map((file, i) => `${file}:${stats[i].mtimeMs}:${stats[i].size}`).join("\n") + crmSignature).digest("hex");
   if (cached?.signature === signature) return structuredClone(cached.graph);
   const generatedAt = new Date(Math.max(...stats.map((stat) => stat.mtimeMs))).toISOString();
@@ -91,7 +90,7 @@ export async function loadLeadGraph(): Promise<GraphSnapshot> {
       tags: ["prospect", classification, field(markdown, "Raw Email"), field(markdown, "Reachability Tier")].filter(Boolean),
       sources: [{ sourceId: `dossier-${hubspotId}`, path: sourcePath, locator: `HubSpot contact ${hubspotId}`, excerpt: markdown }],
     };
-    const context = crm.context(hubspotId);
+    const context = contexts.get(hubspotId);
     if (context) {
       node.crmContext = context;
       node.sources.push({ sourceId: `hubspot-${hubspotId}-${context.revision}`, path: `hubspot:contacts/${hubspotId}`, locator: `CRM observed ${context.observedAt}`, excerpt: JSON.stringify(context) });

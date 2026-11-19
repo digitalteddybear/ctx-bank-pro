@@ -15,7 +15,7 @@
  * 11. Mockable Network: Supports injected fetch handler for offline and unit testing.
  * 12. Microservice Option: Supports delegation to an independently authenticated gateway service.
  */
-import { isAllowlistedContact, getAllowlistedContact } from "./hubspot-allowlist";
+import { isAllowlistedContact } from "./hubspot-allowlist";
 import { z } from "zod";
 import {
   ALLOWED_WRITABLE_PROPERTIES,
@@ -353,11 +353,12 @@ export class HubSpotZeroTrustGateway {
     email: string;
     messageId: string;
     stage: string;
+    evidenceSource?: "Cal.com";
     prospectQuote: string;
     agentBrief: string;
     talkingPoints: string[];
   }): Promise<GatewayOperationResult> {
-    const parsed = z.object({hubspotId:z.string().regex(/^\d+$/),email:z.string().email().toLowerCase(),messageId:z.string().min(8),stage:z.string().min(1).max(100),prospectQuote:z.string().min(1).max(10000),agentBrief:z.string().min(1).max(4000),talkingPoints:z.array(z.string().min(1).max(1000)).length(3)}).strict().safeParse(input);
+    const parsed = z.object({hubspotId:z.string().regex(/^\d+$/),email:z.string().email().toLowerCase(),messageId:z.string().min(8),stage:z.string().min(1).max(100),evidenceSource:z.literal("Cal.com").optional(),prospectQuote:z.string().min(1).max(10000),agentBrief:z.string().min(1).max(4000),talkingPoints:z.array(z.string().min(1).max(1000)).length(3)}).strict().safeParse(input);
     if (!parsed.success) return this.recordEngagementFailure("logReplyEngagement",input.hubspotId,input.email,input.messageId,"conversation_agent",`Invalid broker briefing: ${parsed.error.message}`,undefined,"DENIED_MALFORMED_PAYLOAD");
     const rejection=this.preflight("logReplyEngagement",input.hubspotId,input.email,`${input.messageId}:broker-brief`,"conversation_agent",{stage:input.stage});
     if(rejection)return rejection;
@@ -367,7 +368,7 @@ export class HubSpotZeroTrustGateway {
     }
     const body = [
       `Trajectory stage: ${input.stage}`,
-      `Prospect quote: “${input.prospectQuote.slice(0, 1500)}”`,
+      input.evidenceSource ? `Cal.com event: ${input.prospectQuote.slice(0, 1500)}` : `Prospect quote: “${input.prospectQuote.slice(0, 1500)}”`,
       `Agent brief: ${input.agentBrief.slice(0, 1500)}`,
       "Broker talking points:",
       ...input.talkingPoints.slice(0, 3).map((point, index) => `${index + 1}. ${point.slice(0, 500)}`),

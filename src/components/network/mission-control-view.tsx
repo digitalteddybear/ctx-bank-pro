@@ -29,9 +29,14 @@ import {Icon} from '@astryxdesign/core/Icon';
 import {DropdownMenu, DropdownMenuItem} from '@astryxdesign/core/DropdownMenu';
 import {useGraphStore} from '@/lib/graph/store';
 import {useAIChatStore} from '@/lib/ai-chat-store';
+import { CtxIcon } from '@/components/ui/primitives';
+import { ModelSelectorPopover } from './model-selector-popover';
+import { ChatComposerFx, ChatThinkingStatus, triggerFullScreenGenerativeWave } from './chat-composer-fx';
 import {
-  Cog6ToothIcon,
   AtSymbolIcon,
+  FolderIcon,
+  PaperClipIcon,
+  PlusIcon,
   SparklesIcon,
   PencilSquareIcon,
   CodeBracketIcon,
@@ -281,6 +286,7 @@ export function MissionControlView({
     setPending(true); setFeedback('');
     try {
       if(agentId==='ctx-app-agent') {
+        triggerFullScreenGenerativeWave();
         const conversationId = await useAIChatStore.getState().createConversation(text, attachments);
         useGraphStore.getState().setSelectedChatId(conversationId);
         useGraphStore.getState().setViewMode('ai-chat');
@@ -296,13 +302,32 @@ export function MissionControlView({
     } catch (error) { composerInputRef.current?.insertText(text); setFeedback((error as Error).message); } finally { setPending(false); }
   };
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
+  const [profileName, setProfileName] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+    let active = true;
+    void fetch('/api/session', { cache: 'no-store' })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data: unknown = await res.json();
+        if (active && data && typeof data === 'object' && 'profileName' in data && typeof data.profileName === 'string' && data.profileName.trim()) {
+          setProfileName(data.profileName.trim());
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
   }, []);
   const composerInputRef = useRef<ChatComposerInputHandle>(null);
+  const [isComposerFocused, setIsComposerFocused] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const shouldFocusComposerRef = useRef(false);
-  const dictation = useChatDictation({inputRef: composerInputRef});
+  const dictation = useChatDictation({
+    inputRef: composerInputRef,
+    continuous: true,
+    interimResults: true,
+    onError: (err) => setFeedback(err.message || 'Microphone dictation is unavailable.'),
+  });
 
   const activeMode = MODE_OPTIONS.find(m => m.key === mode) ?? MODE_OPTIONS[0];
   const suggestions = category ? CATEGORY_SUGGESTIONS[category] : null;
@@ -357,8 +382,9 @@ export function MissionControlView({
 
   return (
     <Layout
+      className="ai-chat-landing"
       height="auto"
-      contentWidth={720}
+      contentWidth={728}
       padding={6}
       content={
         <LayoutContent>
@@ -368,7 +394,7 @@ export function MissionControlView({
               <HStack gap={2} vAlign="center">
                 <Icon icon={SparklesIcon} size="md" color="accent" />
                 <Text type="large" as="h2">
-                  CTX orchestrator
+                  {profileName ? `Hi, ${profileName}` : 'Hi there'}
                 </Text>
               </HStack>
               <Text type="display-2" as="h1">
@@ -377,8 +403,22 @@ export function MissionControlView({
             </VStack>
 
             {/* Composer */}
-            <ChatComposer
-              onSubmit={dispatch}
+            <div
+              style={{ width: '100%' }}
+              onFocus={() => setIsComposerFocused(true)}
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setIsComposerFocused(false);
+                }
+              }}
+            >
+              <ChatComposerFx
+                isFocused={isComposerFocused}
+                isListening={mounted && dictation.isListening}
+                voiceLevel={dictation.volume}
+                borderRadius={22}>
+                <ChatComposer
+                  onSubmit={dispatch}
               isDisabled={pending}
               placeholder="Ask anything"
               input={
@@ -407,10 +447,10 @@ export function MissionControlView({
               headerActions={
                 <DropdownMenu
                   button={{
-                    label: `Agent: ${agentId}`,
+                    label: agentId === 'ctx-app-agent' ? 'CTX App Agent' : `Agent: ${agentId}`,
                     variant: 'ghost',
                     size: 'sm',
-                    icon: <Icon icon={AtSymbolIcon} size="sm" />,
+                    icon: agentId === 'ctx-app-agent' ? <CtxIcon size={22} /> : <Icon icon={AtSymbolIcon} size="sm" />,
                     isIconOnly: false,
                   }}
                   hasChevron={false}
@@ -420,6 +460,7 @@ export function MissionControlView({
                       key={item.id}
                       label={item.label}
                       description={item.auxiliaryData?.role}
+                      icon={item.id === 'ctx-app-agent' ? <CtxIcon size={16} /> : undefined}
                       onClick={() => { setAgentId(item.id); if(item.id!=='ctx-app-agent') insertMention(item); }}
                     />
                   ))}
@@ -431,7 +472,7 @@ export function MissionControlView({
                     button={{
                       label: activeMode.label,
                       variant: 'ghost',
-                      size: 'md',
+                      size: 'sm',
                       icon: <Icon icon={activeMode.icon} size="sm" />,
                       children: activeMode.label,
                     }}
@@ -464,23 +505,69 @@ export function MissionControlView({
                         : [item];
                     })}
                   />
+                  <ModelSelectorPopover />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files ?? []);
+                      if (files.length > 0) void uploadFiles(files);
+                      event.target.value = '';
+                    }}
+                  />
                   <DropdownMenu
                     button={{
-                      label: 'Settings',
+                      label: 'File',
                       variant: 'ghost',
-                      size: 'md',
-                      icon: <Icon icon={Cog6ToothIcon} size="sm" />,
-                      children: 'Settings',
+                      size: 'sm',
+                      icon: <Icon icon={PlusIcon} size="sm" />,
+                      children: 'File',
                     }}
-                    menuWidth={200}
+                    hasChevron={false}
+                    menuWidth={220}
                     items={[
-                      {label: 'AI Settings', onClick: () => useGraphStore.getState().setViewMode('ai-settings')},
+                      {
+                        label: 'Upload or add files',
+                        icon: PaperClipIcon,
+                        isDisabled: pending,
+                        onClick: () => fileInputRef.current?.click(),
+                      },
+                      {
+                        label: 'Documents & Sources',
+                        icon: FolderIcon,
+                        onClick: () => useGraphStore.getState().setViewMode('sources'),
+                      },
+                      ...(attachments.length > 0
+                        ? [
+                            { type: 'divider' as const },
+                            {
+                              label: `Clear attachments (${attachments.length})`,
+                              onClick: () => setAttachments([]),
+                            },
+                          ]
+                        : []),
                     ]}
                   />
                 </>
               }
-              sendActions={mounted ? <ChatDictationButton dictation={dictation} /> : undefined}
-            />
+                  sendActions={mounted ? <ChatDictationButton dictation={dictation} /> : undefined}
+                />
+              </ChatComposerFx>
+            </div>
+
+            {pending && (
+              <ChatThinkingStatus
+                size={64}
+                state={mode === 'deep' ? 'searching' : 'connecting'}
+                label={
+                  mode === 'deep'
+                    ? 'Preparing deep research…'
+                    : 'Launching chat & generative UI…'
+                }
+              />
+            )}
 
             {feedback && <Text role="status">{feedback}</Text>}
             {instructions.slice(-8).map(entry => <VStack key={entry.seq} gap={1}><Text>{entry.data.text}</Text><Text type="supporting" color="secondary">{entry.data.agentId} · Received {new Date(entry.at).toLocaleString()}</Text></VStack>)}

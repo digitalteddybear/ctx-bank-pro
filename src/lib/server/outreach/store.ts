@@ -15,9 +15,12 @@ export class OutreachStore {
     this.db.exec("PRAGMA journal_mode = WAL;");
     this.db.exec("PRAGMA busy_timeout = 5000;");
     const version=Number(this.db.prepare("PRAGMA user_version").get()?.user_version??0);
-    if(version>2){this.db.close();throw new Error("This outreach database requires a newer CTX version.");}
+    if(version>3){this.db.close();throw new Error("This outreach database requires a newer CTX version.");}
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS runs_contact_history ON runs(
+        coalesce(json_extract(data,'$.prospect.phase1LeadId'),json_extract(data,'$.prospect.id')),
+        lower(trim(json_extract(data,'$.prospect.email'))),json_extract(data,'$.createdAt') DESC);
       CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, revision INTEGER NOT NULL, stage TEXT NOT NULL, due INTEGER NOT NULL, lease INTEGER NOT NULL DEFAULT 0, owner TEXT, attempts INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL DEFAULT 'queued');
       CREATE INDEX IF NOT EXISTS jobs_ready ON jobs(state,due,lease);
       CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL, at INTEGER NOT NULL);
@@ -30,14 +33,17 @@ export class OutreachStore {
       CREATE TABLE IF NOT EXISTS outreach_preferences (key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS inflection_alerts (id TEXT PRIMARY KEY, data TEXT NOT NULL);
 `);
-    this.migrateProductionSchema();
+    if (version < 3) {
+      this.migrateProductionSchema();
+    }
   }
   private migrateProductionSchema(){
     this.db.exec("BEGIN IMMEDIATE");
     try{
-      this.db.exec("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,applied_at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS campaign_runs(lead_id TEXT NOT NULL,campaign_id TEXT NOT NULL,run_id TEXT NOT NULL UNIQUE,PRIMARY KEY(lead_id,campaign_id)); CREATE TABLE IF NOT EXISTS crm_delivery_jobs(id TEXT PRIMARY KEY,run_id TEXT NOT NULL,kind TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'queued',due INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,lease INTEGER NOT NULL DEFAULT 0,error TEXT); CREATE INDEX IF NOT EXISTS crm_delivery_ready ON crm_delivery_jobs(state,due,lease);");
+      this.db.exec("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,applied_at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS campaign_runs(lead_id TEXT NOT NULL,campaign_id TEXT NOT NULL,run_id TEXT NOT NULL UNIQUE,PRIMARY KEY(lead_id,campaign_id)); CREATE TABLE IF NOT EXISTS crm_delivery_jobs(id TEXT PRIMARY KEY,run_id TEXT NOT NULL,kind TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'queued',due INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,lease INTEGER NOT NULL DEFAULT 0,error TEXT); CREATE INDEX IF NOT EXISTS crm_delivery_ready ON crm_delivery_jobs(state,due,lease); CREATE INDEX IF NOT EXISTS events_run_seq ON events(run_id,seq); CREATE INDEX IF NOT EXISTS jobs_run_id ON jobs(run_id);");
       this.db.prepare("INSERT OR IGNORE INTO schema_migrations VALUES(2,?)").run(Date.now());
-      this.db.exec("PRAGMA user_version=2; COMMIT;");
+      this.db.prepare("INSERT OR IGNORE INTO schema_migrations VALUES(3,?)").run(Date.now());
+      this.db.exec("PRAGMA user_version=3; COMMIT;");
     }catch(error){this.db.exec("ROLLBACK");throw error;}
   }
   transaction<T>(fn: () => T): T {

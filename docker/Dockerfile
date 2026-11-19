@@ -1,7 +1,7 @@
 FROM node:24-bookworm-slim AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline --no-audit
 FROM dependencies AS production-dependencies
 RUN npm prune --omit=dev
 FROM dependencies AS build

@@ -70,7 +70,8 @@
  */
 
 import type { Run } from '@/lib/server/outreach/types';
-import {useCallback, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {useReplyTemplatePreview} from "@/lib/reply-template-preview";
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 
 import {
   HStack,
@@ -1671,7 +1672,7 @@ function ComposeWindow({
   draft,
   onSend,
 }: {
-  onSend: (id: string, text: string, template: string) => Promise<void>;
+  onSend: (id: string, text: string, template?: string, baseTemplate?: string) => Promise<void>;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   /**
@@ -1699,13 +1700,31 @@ function ComposeWindow({
   const [hasBcc, setHasBcc] = useState(false);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [htmlTemplate, setHtmlTemplate] = useState('<!doctype html><html><body style="font-family:Arial,sans-serif;color:#202124"><div>{{message}}</div></body></html>');
   const [templateMode, setTemplateMode] = useState(false);
-  useLayoutEffect(() => { const saved = localStorage.getItem("ctx-inbox-reply-template"); if (saved) setHtmlTemplate(saved); }, []);
-  const previewHtml = htmlTemplate.replace(/\{\{\s*(?:message|body|reply)\s*\}\}/gi, body.replace(/[&<>"\']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","\'":"&#39;"}[c] ?? c)).replace(/\r?\n/g,"<br>"));
+  const [templateDraft,setTemplateDraft]=useState<{id:string;base:string;text:string}|null>(null);
+  const [templateError,setTemplateError]=useState('');
+  const draftConversationId = useRef<string | null>(null);
+  const conversationId=draft?.conversationId??draftConversationId.current;
+  const editor=templateDraft?.id===conversationId ? templateDraft : null;
+  const htmlTemplate=editor?.text??'';
+  useEffect(()=>{
+    if(!isOpen||!templateMode||!conversationId||editor)return;
+    const controller=new AbortController();
+    setTemplateError('');
+    void (async()=>{
+      try{
+        const response=await fetch('/api/agents/runs/'+encodeURIComponent(conversationId)+'/reply-template',{cache:'no-store',signal:controller.signal});
+        if(!response.ok)throw new Error();
+        const data:unknown=await response.json();
+        if(!data||typeof data!=='object'||!('template' in data)||typeof data.template!=='string')throw new Error();
+        if(!controller.signal.aborted)setTemplateDraft({id:conversationId,base:data.template,text:data.template});
+      }catch{if(!controller.signal.aborted)setTemplateError('Could not load the saved reply template.');}
+    })();
+    return ()=>controller.abort();
+  },[isOpen,templateMode,conversationId,editor]);
+  const preview=useReplyTemplatePreview(htmlTemplate,isOpen&&templateMode&&Boolean(editor),body);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
-  const draftConversationId = useRef<string | null>(null);
 
   // Fill the header from the thread that asked for this. A draft survives
   // closing and reopening the same thread, but none of its recipient-specific
@@ -1719,6 +1738,7 @@ function ComposeWindow({
     setRecipients(draft.recipients);
     setSubject(draft.subject);
     if (draftConversationId.current !== draft.conversationId) {
+      setTemplateDraft(null);setTemplateMode(false);setTemplateError('');setSendError('');
       setCc([]);
       setBcc([]);
       setHasCc(false);
@@ -1739,6 +1759,7 @@ function ComposeWindow({
     setHasBcc(false);
     setSubject('');
     setBody('');
+    setTemplateDraft(null);setTemplateMode(false);
     draftConversationId.current = null;
     onOpenChange(false);
   }, [onOpenChange]);
@@ -1896,7 +1917,7 @@ function ComposeWindow({
                 />
 
                 <HStack gap={2}><Button label="Message" size="sm" variant={templateMode ? "secondary" : "primary"} onClick={() => setTemplateMode(false)}/><Button label="HTML template" size="sm" variant={templateMode ? "primary" : "secondary"} onClick={() => setTemplateMode(true)}/></HStack>
-                {templateMode ? <><TextArea label="Reply HTML template" rows={8} value={htmlTemplate} onChange={value => { setHtmlTemplate(value); localStorage.setItem("ctx-inbox-reply-template", value); }} description="Use {{message}} where the agent reply should appear. This applies to replies after the first inbound email."/><Text type="label">Email preview</Text><iframe title="Reply email preview" sandbox="" srcDoc={previewHtml} style={{width:"100%",height:220,border:"1px solid var(--color-border)",borderRadius:"var(--radius-medium)",background:"white"}} /></> : <TextArea
+                {templateMode ? <>{templateError && <Text role="alert">{templateError}</Text>}{sendError && editor && <Button label="Reload template" size="sm" variant="secondary" onClick={()=>{setTemplateDraft(null);setSendError('');}}/>}<TextArea label="Reply HTML template" rows={8} value={htmlTemplate} maxLength={20000} isDisabled={!editor||sending} onChange={value => { if(editor)setTemplateDraft({...editor,text:value}); }} description="Use {{message}} where the agent reply should appear. This applies to replies after the first inbound email."/>{preview.error && <Text role="alert">{preview.error}</Text>}<Text type="label">Email preview</Text><iframe title="Reply email preview" sandbox="" srcDoc={editor?preview.html:""} style={{width:"100%",height:220,border:"1px solid var(--color-border)",borderRadius:"var(--radius-medium)",background:"white"}} /></> : <TextArea
                   label="Message"
                   isLabelHidden
                   placeholder="Write your message…"
@@ -1930,7 +1951,7 @@ function ComposeWindow({
                     onClick={async () => {
                       if (!draftConversationId.current) return;
                       setSending(true); setSendError('');
-                      try { await onSend(draftConversationId.current, body, htmlTemplate); setBody(''); onOpenChange(false); }
+                      try { await onSend(draftConversationId.current, body, editor && editor.text!==editor.base ? editor.text : undefined, editor?.base); setTemplateDraft(null); setBody(''); onOpenChange(false); }
                       catch (error) { setSendError((error as Error).message); }
                       finally { setSending(false); }
                     }}
@@ -2712,7 +2733,7 @@ export function TableInboxView({
         isOpen={isComposeOpen}
         onOpenChange={setComposeOpen}
         draft={composeDraft}
-        onSend={(id, text, template) => execute({action:"reply", id, eventId:`reply-${Date.now()}-${crypto.randomUUID()}`, text, htmlTemplate:template})}
+        onSend={(id, text, template, baseTemplate) => execute({action:"reply", id, eventId:`reply-${Date.now()}-${crypto.randomUUID()}`, text, ...(template===undefined?{}:{htmlTemplate:template,baseTemplate})})}
       />
     </div>
   );

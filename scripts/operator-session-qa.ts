@@ -8,7 +8,8 @@ import { proxy } from "../src/proxy";
 test("administrator sign-in verifies password and signed session; forged sessions fail",async()=>{
   process.env.CTX_SESSION_SECRET="a".repeat(64);
   process.env.CTX_ADMIN_EMAIL="operator@example.test";
-  process.env.CTX_ADMIN_PASSWORD_HASH="scrypt:qa-salt:"+scryptSync("test-passphrase","qa-salt",64).toString("hex");
+  const salt="ab".repeat(16);
+  process.env.CTX_ADMIN_PASSWORD_HASH="scrypt:"+salt+":"+scryptSync("test-passphrase",salt,64).toString("hex");
   assert.equal(verifyOperatorPassword("wrong"),false);
   assert.equal(verifyOperatorPassword("test-passphrase"),true);
   const token=await createOperatorSession("operator@example.test");

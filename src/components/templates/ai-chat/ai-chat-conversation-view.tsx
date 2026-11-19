@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { Button } from "@astryxdesign/core/Button";
-import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatMessage, ChatMessageBubble, ChatMessageList, ChatToolCalls, type ChatComposerInputHandle } from "@astryxdesign/core/Chat";
+import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatDictationButton, ChatMessage, ChatMessageBubble, ChatMessageList, ChatToolCalls, useChatDictation, type ChatComposerInputHandle } from "@astryxdesign/core/Chat";
 import { HStack, Layout, LayoutContent, VStack } from "@astryxdesign/core/Layout";
 import { ResizeHandle, useResizable } from "@astryxdesign/core/Resizable";
 import { useMediaQuery } from "@astryxdesign/core/hooks";
@@ -13,10 +13,16 @@ import { CodeBlock } from "@astryxdesign/core/CodeBlock";
 import { TabList, Tab } from "@astryxdesign/core/TabList";
 import { Token } from "@astryxdesign/core/Token";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
-import { Trash2 } from "lucide-react";
+import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
+import { Icon } from "@astryxdesign/core/Icon";
+import { Check, Copy, Download, RotateCcw, Trash2 } from "lucide-react";
+import { FolderIcon, PaperClipIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { useGraphStore } from "@/lib/graph/store";
 import { useAIChatStore, type AIChatAttachment, type AIChatMessage } from "@/lib/ai-chat-store";
-import { AI_SETTINGS_STORAGE_KEY, DEFAULT_AI_SETTINGS, aiSettingsSchema } from "@/lib/ai-settings";
+import { AI_SETTINGS_STORAGE_KEY, aiSettingsSchema, aiSettingsSnapshotSchema } from "@/lib/ai-settings";
 import { ctxAgentResponseSchema } from "@/lib/ctx-app-agent-contract";
+import { ChatComposerFx, ChatThinkingStatus, triggerFullScreenGenerativeWave } from "@/components/network/chat-composer-fx";
+import { ModelSelectorPopover } from "@/components/network/model-selector-popover";
 import type { GenerativeWidgetPayload } from "@/components/network/generative-ui/types";
 import { ArchitectureDiffWidget } from "@/components/network/generative-ui/architecture-diff-widget";
 import { ComplianceGateWidget } from "@/components/network/generative-ui/compliance-gate-widget";
@@ -92,6 +98,17 @@ export function AIChatConversationView({ conversationId, onMissionControl }: { c
   const addMessage = useAIChatStore(state => state.addMessage);
   const updateMessage = useAIChatStore(state => state.updateMessage);
   const inputRef = useRef<ChatComposerInputHandle>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isComposerFocused, setIsComposerFocused] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [previewViewport, setPreviewViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const wavedWidgetMessageIdsRef = useRef<Set<string>>(new Set());
+  const dictation = useChatDictation({
+    inputRef,
+    continuous: true,
+    interimResults: true,
+    onError: (err) => setError(err.message || "Microphone dictation is unavailable."),
+  });
   const running = useRef(false);
   const handledInitial = useRef<string | null>(null);
   const [attachments, setAttachments] = useState<AIChatAttachment[]>([]);
@@ -140,12 +157,15 @@ export function AIChatConversationView({ conversationId, onMissionControl }: { c
       setError(cause instanceof Error ? cause.message : "Could not save this message.");
       running.current = false; setIsStreaming(false); return;
     } 
-    let settings = DEFAULT_AI_SETTINGS;
-    try { const raw = localStorage.getItem(AI_SETTINGS_STORAGE_KEY); if (raw) settings = aiSettingsSchema.parse(JSON.parse(raw)); } catch { localStorage.removeItem(AI_SETTINGS_STORAGE_KEY); }
-    const appEdit = Boolean(settings.models.appEditor.targetFile.trim()) && /\b(edit|change|modify|patch|style|layout|redesign)\b/i.test(prompt);
-    const task = appEdit ? "app-edit" : current.task === "research" || /\b(research|sources|cite|evidence|investigate|look up)\b/i.test(prompt) ? "research" : current.task === "code" || /\b(code|function|bug|typescript|react|implementation)\b/i.test(prompt) ? "code" : "general";
-    const history = (reusingLandingPrompt ? current.messages : [...current.messages, userMessage]).slice(-21).map(message => ({ role: message.role, content: message.content }));
     try {
+      const settingsResponse=await fetch("/api/ai-workspace/settings",{cache:"no-store"});
+      if(!settingsResponse.ok)throw new Error("Could not load saved AI settings. Retry when CTX reconnects.");
+      const savedSettings=aiSettingsSnapshotSchema.parse(await settingsResponse.json());
+      let settings = savedSettings.settings;
+      if(savedSettings.revision===0)try { const raw = localStorage.getItem(AI_SETTINGS_STORAGE_KEY); if (raw) settings = aiSettingsSchema.parse(JSON.parse(raw)); } catch { /* Use server defaults when legacy browser storage is unavailable. */ }
+      const appEdit = Boolean(settings.models.appEditor.targetFile.trim()) && /\b(edit|change|modify|patch|style|layout|redesign)\b/i.test(prompt);
+      const task = appEdit ? "app-edit" : current.task === "research" || /\b(research|sources|cite|evidence|investigate|look up)\b/i.test(prompt) ? "research" : current.task === "code" || /\b(code|function|bug|typescript|react|implementation)\b/i.test(prompt) ? "code" : "general";
+      const history = (reusingLandingPrompt ? current.messages : [...current.messages, userMessage]).slice(-21).map(message => ({ role: message.role, content: message.content }));
       const response = await fetch("/api/ctx-app-agent/stream", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId, conversationId, userMessageId: userMessage.id, assistantMessageId: assistantId, prompt, history: history.slice(0, -1), documentIds: files.map(file => file.id), settings, task }), signal: undefined });
       if (!response.ok) { const result: unknown = await response.json(); const body = eventPayload(result); throw new Error(typeof body.error === "string" ? body.error : "Assistant request failed."); }
       const serverRunId = response.headers.get("x-ctx-run-id");
@@ -211,7 +231,7 @@ export function AIChatConversationView({ conversationId, onMissionControl }: { c
               const event = eventPayload(JSON.parse(data));
               if ((event.type === "tool.started" || event.type === "tool.finished") && typeof event.payload === "object" && event.payload !== null && "toolCall" in event.payload) { const parsedTool=aiWorkspaceToolCallSchema.safeParse(event.payload.toolCall); if(parsedTool.success){ const old=useAIChatStore.getState().conversations.find(item=>item.id===conversationId)?.messages.find(item=>item.id===message.id)?.toolCalls??[]; useAIChatStore.getState().setLocalMessage(conversationId,message.id,{toolCalls:[...old.filter(call=>call.id!==parsedTool.data.id),parsedTool.data]}); } }
               if (event.type === "text.delta" && typeof event.payload === "object" && event.payload !== null && "text" in event.payload && typeof event.payload.text === "string") { content += event.payload.text; useAIChatStore.getState().setLocalMessage(conversationId, message.id, { content }); }
-              if (event.type === "run.completed" && typeof event.payload === "object" && event.payload !== null) { const result = ctxAgentResponseSchema.safeParse(event.payload); if (!result.success) throw new Error("The saved response was invalid."); await useAIChatStore.getState().updateMessage(conversationId, message.id, { ...result.data, status: "complete", runId: message.runId }); completed = true; requestBackendSync(); }
+              if (event.type === "run.completed" && typeof event.payload === "object" && event.payload !== null) { const result = ctxAgentResponseSchema.safeParse(event.payload); if (!result.success) throw new Error("The saved response was invalid."); await useAIChatStore.getState().updateMessage(conversationId, message.id, { ...result.data, status: "complete", runId: message.runId }); if (result.data.widgets?.length || result.data.artifactIds?.length) setArtifactOpen(true); completed = true; requestBackendSync(); }
               if (event.type === "run.failed" || event.type === "run.cancelled") { const detail = typeof event.payload === "object" && event.payload !== null && "error" in event.payload && typeof event.payload.error === "string" ? event.payload.error : "Response interrupted. Retry the request."; await useAIChatStore.getState().updateMessage(conversationId, message.id, { status: "error", ...(content ? {} : { content: detail }) }); if (!stopped) setError(detail); completed = true; }
             }
             boundary = buffer.indexOf("\n\n");
@@ -237,6 +257,13 @@ export function AIChatConversationView({ conversationId, onMissionControl }: { c
     if (forceTranscriptFollow.current || followTranscript.current) container.scrollTo({top:container.scrollHeight,behavior:"auto"});
     forceTranscriptFollow.current = false;
   }, [conversation?.messages.length, latestAssistant?.content]);
+  useEffect(() => {
+    if (!latestAssistant?.id || !latestAssistant.widgets?.length) return;
+    if (latestAssistant.status !== "streaming") return;
+    if (wavedWidgetMessageIdsRef.current.has(latestAssistant.id)) return;
+    wavedWidgetMessageIdsRef.current.add(latestAssistant.id);
+    triggerFullScreenGenerativeWave();
+  }, [latestAssistant?.id, latestAssistant?.status, latestAssistant?.widgets?.length]);
   const openArtifactVersion = async (artifactId: string, version?: number) => {
     const response = await fetch(`/api/ai-workspace/artifacts/${encodeURIComponent(artifactId)}${version ? `?version=${version}` : ""}`, {cache:"no-store"});
     const value: unknown = await response.json(); if (!response.ok || typeof value !== "object" || value === null || !("artifact" in value)) return;
@@ -247,6 +274,26 @@ export function AIChatConversationView({ conversationId, onMissionControl }: { c
   const downloadArtifactCode = () => {
     const file = activeArtifactFiles[0]; if (!file) return;
     const url = URL.createObjectURL(new Blob([file.content], {type:"text/plain;charset=utf-8"})); const anchor = document.createElement("a"); anchor.href = url; anchor.download = file.path.split("/").at(-1) ?? "artifact.txt"; anchor.click(); URL.revokeObjectURL(url);
+  };
+  const copyMessageMarkdown = async (messageId: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedMessageId(messageId);
+      window.setTimeout(() => setCopiedMessageId(current => (current === messageId ? null : current)), 1600);
+    } catch {}
+  };
+  const exportConversationMarkdown = () => {
+    if (!conversation) return;
+    const body = conversation.messages
+      .map(m => `## ${m.role === "user" ? "User" : "Assistant"}\n\n${m.content}`)
+      .join("\n\n---\n\n");
+    const markdown = `# ${conversation.title}\n\n${body}\n`;
+    const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${conversation.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "chat"}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
   const hasArtifact = Boolean(conversation?.messages.some(message => message.widgets?.length || message.artifactIds?.length));
   const upload = async (files: File[]) => {
@@ -266,8 +313,15 @@ export function AIChatConversationView({ conversationId, onMissionControl }: { c
       <HStack gap={3} style={{ padding: 16, borderBottom: "1px solid var(--border)" }} vAlign="center">
         <Button label="Mission Control" size="sm" variant="ghost" onClick={onMissionControl} />
         <Text weight="semibold" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{conversation.title}</Text>
-        {isStreaming && <><Text type="supporting" color="secondary">Generating…</Text><Button label="Stop" size="sm" variant="secondary" onClick={() => { const runId = useAIChatStore.getState().conversations.find(item => item.id === conversationId)?.messages.at(-1)?.runId; if (runId) void fetch(`/api/ctx-app-agent/runs/${encodeURIComponent(runId)}/cancel`, {method:"POST"}).then(() => requestBackendSync()); }} /></>}
-        {hasArtifact && !artifactOpen && <Button label="Open workspace" size="sm" variant="secondary" onClick={() => setArtifactOpen(true)} />}
+        {isStreaming && <><ChatThinkingStatus size={20} state={latestAssistant?.widgets?.length ? "working" : latestAssistant?.toolCalls?.length ? "searching" : "composing"} label={latestAssistant?.widgets?.length ? "Building UI…" : latestAssistant?.toolCalls?.length ? "Running tools…" : "Generating…"} /><Button label="Stop" size="sm" variant="secondary" onClick={() => { const runId = useAIChatStore.getState().conversations.find(item => item.id === conversationId)?.messages.at(-1)?.runId; if (runId) void fetch(`/api/ctx-app-agent/runs/${encodeURIComponent(runId)}/cancel`, {method:"POST"}).then(() => requestBackendSync()); }} /></>}
+        {hasArtifact && !artifactOpen && <Button label="Open workspace" size="sm" variant="secondary" onClick={() => { triggerFullScreenGenerativeWave(); setArtifactOpen(true); }} />}
+        <Button
+          label="Export"
+          icon={<Download size={14} />}
+          size="sm"
+          variant="ghost"
+          onClick={exportConversationMarkdown}
+        />
         <Button
           label="Delete chat"
           icon={<Trash2 size={14} />}
@@ -277,19 +331,112 @@ export function AIChatConversationView({ conversationId, onMissionControl }: { c
         />
       </HStack>
       <ChatMessageList ref={transcriptRef} isStreaming={isStreaming} onScroll={() => { const container = transcriptRef.current; if (container) followTranscript.current = container.scrollHeight - container.scrollTop - container.clientHeight < 80; }} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 20 }}>
-        {conversation.messages.map(message => <ChatMessage key={message.id} sender={message.role}>
+        {conversation.messages.map((message, messageIndex) => {
+          const previousUserPrompt = message.role === "assistant"
+            ? conversation.messages.slice(0, messageIndex).reverse().find(m => m.role === "user")?.content
+            : undefined;
+          return <ChatMessage key={message.id} sender={message.role}>
           {message.attachments?.length ? <HStack gap={1} wrap="wrap">{message.attachments.map(file => <Token key={file.id} label={file.name} />)}</HStack> : null}
           <ChatMessageBubble variant={message.role === "assistant" ? "ghost" : undefined}>
-            {message.role === "assistant" ? <Markdown density="compact" isStreaming={message.status === "streaming"}>{message.content || (message.status === "streaming" ? "Thinking…" : "")}</Markdown> : <Markdown density="compact">{message.content}</Markdown>}
+            {message.role === "assistant" ? (message.content ? <Markdown density="compact" isStreaming={message.status === "streaming"}>{message.content}</Markdown> : message.status === "streaming" ? <ChatThinkingStatus size={64} state={message.toolCalls?.length ? "searching" : "composing"} label="Thinking…" /> : <Markdown density="compact">{""}</Markdown>) : <Markdown density="compact">{message.content}</Markdown>}
           </ChatMessageBubble>
           {message.toolCalls?.length ? <ChatToolCalls defaultIsExpanded calls={message.toolCalls.map(call => ({ name: call.name, input: call.target, output: call.errorMessage ?? call.result ?? call.status }))} /> : null}
           {message.widgets?.map((widget, index) => renderWidget(widget, `${message.id}-${index}`))}
-          {message.citations?.length ? <VStack gap={1} style={{ marginTop: 8 }}>{message.citations.map(citation => <Text key={citation.id} type="supporting"><a href={citation.url} target="_blank" rel="noreferrer" style={{color:"var(--accent)",textDecoration:"underline",textUnderlineOffset:2}}>{citation.title}</a></Text>)}</VStack> : null}
+          {message.citations?.length ? <HStack gap={1.5} wrap="wrap" style={{ marginTop: 8 }}>{message.citations.map(citation => <a key={citation.id} href={citation.url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", padding: "3px 8px", borderRadius: 6, background: "var(--secondary)", border: "1px solid var(--border)", color: "var(--foreground)", fontSize: 11, textDecoration: "none" }}>{citation.title}</a>)}</HStack> : null}
+          {message.content && message.status !== "streaming" && (
+            <HStack gap={1} style={{ marginTop: 4 }}>
+              <Button
+                label={copiedMessageId === message.id ? "Copied" : "Copy"}
+                icon={copiedMessageId === message.id ? <Check size={12} /> : <Copy size={12} />}
+                size="sm"
+                variant="ghost"
+                onClick={() => void copyMessageMarkdown(message.id, message.content)}
+              />
+              {message.role === "assistant" && previousUserPrompt && !isStreaming && (
+                <Button
+                  label="Regenerate"
+                  icon={<RotateCcw size={12} />}
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void send(previousUserPrompt, [])}
+                />
+              )}
+            </HStack>
+          )}
           {message.status === "error" && <Text type="supporting" color="secondary">Response interrupted. Submit a new message to retry.</Text>}
-        </ChatMessage>)}
+        </ChatMessage>;
+        })}
       </ChatMessageList>
       {error && <Text role="alert" style={{ paddingInline: 16 }}>{error}</Text>}
-      <ChatComposer onSubmit={text => { void send(text, attachments); setAttachments([]); }} isDisabled={isStreaming} placeholder="Message CTX App Agent…" input={<ChatComposerInput handleRef={inputRef} onFiles={files => { void upload(files).catch(cause => setError(cause instanceof Error ? cause.message : "Upload failed.")); }} />} drawer={attachments.length ? <ChatComposerDrawer count={attachments.length}>{attachments.map(file => <Token key={file.id} label={file.name} onRemove={() => setAttachments(previous => previous.filter(item => item.id !== file.id))} />)}</ChatComposerDrawer> : undefined} />
+      <div
+        style={{ width: "100%" }}
+        onFocus={() => setIsComposerFocused(true)}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            setIsComposerFocused(false);
+          }
+        }}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          style={{ display: "none" }}
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+            if (files.length > 0) void upload(files).catch(cause => setError(cause instanceof Error ? cause.message : "Upload failed."));
+            event.target.value = "";
+          }}
+        />
+        <ChatComposerFx isFocused={isComposerFocused} isListening={dictation.isListening} voiceLevel={dictation.volume} borderRadius={16}>
+          <ChatComposer
+            onSubmit={text => { void send(text, attachments); setAttachments([]); }}
+            isDisabled={isStreaming}
+            placeholder="Message CTX App Agent…"
+            input={<ChatComposerInput handleRef={inputRef} onFiles={files => { void upload(files).catch(cause => setError(cause instanceof Error ? cause.message : "Upload failed.")); }} />}
+            drawer={attachments.length ? <ChatComposerDrawer count={attachments.length}>{attachments.map(file => <Token key={file.id} label={file.name} onRemove={() => setAttachments(previous => previous.filter(item => item.id !== file.id))} />)}</ChatComposerDrawer> : undefined}
+            footerActions={
+              <>
+                <ModelSelectorPopover />
+                <DropdownMenu
+                  button={{
+                    label: "File",
+                    variant: "ghost",
+                    size: "sm",
+                    icon: <Icon icon={PlusIcon} size="sm" />,
+                    children: "File",
+                  }}
+                  hasChevron={false}
+                  menuWidth={220}
+                  items={[
+                    {
+                      label: "Upload or add files",
+                      icon: PaperClipIcon,
+                      isDisabled: isStreaming,
+                      onClick: () => fileInputRef.current?.click(),
+                    },
+                    {
+                      label: "Documents & Sources",
+                      icon: FolderIcon,
+                      onClick: () => useGraphStore.getState().setViewMode("sources"),
+                    },
+                    ...(attachments.length > 0
+                      ? [
+                          { type: "divider" as const },
+                          {
+                            label: `Clear attachments (${attachments.length})`,
+                            onClick: () => setAttachments([]),
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              </>
+            }
+            sendActions={<ChatDictationButton dictation={dictation} />}
+          />
+        </ChatComposerFx>
+      </div>
     </VStack>
     {artifactOpen && <>
       {!isMobile && <ResizeHandle resizable={artifactPanel.props} />}
@@ -299,8 +446,19 @@ export function AIChatConversationView({ conversationId, onMissionControl }: { c
         <TabList value={artifactTab} onChange={setArtifactTab} size="sm" aria-label="Artifact view"><Tab value="preview" label="Preview" /><Tab value="code" label="Code" /></TabList>
         {activeArtifact && activeArtifact.currentVersion > 1 && <HStack gap={1} wrap="wrap">{Array.from({length:activeArtifact.currentVersion}, (_,index) => index+1).map(version => <Button key={version} label={version === activeArtifact.currentVersion ? `Current v${version}` : `v${version}`} size="sm" variant="ghost" onClick={() => void openArtifactVersion(activeArtifact.id, version)} />)}</HStack>}
         {artifactTab === "preview" ? <>
+          {activeArtifact && (activeArtifact.type === "react-ui" || activeArtifact.type === "code") && (
+            <HStack gap={1} vAlign="center">
+              <Button label="Desktop" size="sm" variant={previewViewport === "desktop" ? "secondary" : "ghost"} onClick={() => setPreviewViewport("desktop")} />
+              <Button label="Tablet" size="sm" variant={previewViewport === "tablet" ? "secondary" : "ghost"} onClick={() => setPreviewViewport("tablet")} />
+              <Button label="Mobile" size="sm" variant={previewViewport === "mobile" ? "secondary" : "ghost"} onClick={() => setPreviewViewport("mobile")} />
+            </HStack>
+          )}
           {latestAssistant?.widgets?.map((widget, index) => renderWidget(widget, `artifact-${index}`))}
-          {activeArtifact?.type === "document" ? activeArtifactFiles.map(file => <Markdown key={`${activeArtifact.id}-${file.path}`} density="compact">{file.content}</Markdown>) : activeArtifact?.type === "structured-ui" && activeArtifact.version?.spec ? renderWidget(activeArtifact.version.spec as GenerativeWidgetPayload, activeArtifact.id) : activeArtifact && (activeArtifact.type === "react-ui" || activeArtifact.type === "code") ? <ArtifactPreviewPanel artifact={activeArtifact} /> : null}
+          {activeArtifact?.type === "document" ? activeArtifactFiles.map(file => <Markdown key={`${activeArtifact.id}-${file.path}`} density="compact">{file.content}</Markdown>) : activeArtifact?.type === "structured-ui" && activeArtifact.version?.spec ? renderWidget(activeArtifact.version.spec as GenerativeWidgetPayload, activeArtifact.id) : activeArtifact && (activeArtifact.type === "react-ui" || activeArtifact.type === "code") ? (
+            <div style={{ width: previewViewport === "desktop" ? "100%" : previewViewport === "tablet" ? "768px" : "390px", maxWidth: "100%", marginInline: "auto", flex: 1, display: "flex", flexDirection: "column" }}>
+              <ArtifactPreviewPanel artifact={activeArtifact} />
+            </div>
+          ) : null}
         </> : <>
           {activeArtifactFiles.length > 0 && <HStack gap={1}><Button label="Copy" size="sm" variant="secondary" onClick={() => void copyArtifactCode()} /><Button label="Download" size="sm" variant="secondary" onClick={downloadArtifactCode} /></HStack>}
           {activeArtifactFiles.map(file => <CodeBlock key={`${activeArtifact?.id}-${file.path}`} code={file.content} language={file.language} container="section" hasLineNumbers size="sm" />)}

@@ -108,3 +108,24 @@ test("auth: hasLocalWorkspaceAccess allows loopback same-origin browser calls wh
     process.env.CTX_OUTREACH_OPERATOR_TOKEN = previous;
   }
 });
+
+test("auth: verifyApiRequest defaults allowSameOrigin=false and rejects missing-origin loopback", async () => {
+  const req = new NextRequest("http://localhost:3000/api/agents");
+  const defaultRes = await verifyApiRequest(req);
+  assert.equal(defaultRes.authenticated, false);
+
+  const explicitSameOriginWithoutHeader = await verifyApiRequest(req, undefined, { allowSameOrigin: true });
+  assert.equal(explicitSameOriginWithoutHeader.authenticated, false);
+});
+
+test("auth: /api/documents and /api/ctx-app-agent enforce route-level authorization", async () => {
+  const { GET: docsGet, POST: docsPost } = await import("../src/app/api/documents/route");
+  const { GET: agentGet } = await import("../src/app/api/ctx-app-agent/route");
+
+  const unauthDocReq = new NextRequest("https://ctx.example.com/api/documents");
+  assert.equal((await docsGet(unauthDocReq)).status, 401);
+  assert.equal((await docsPost(unauthDocReq)).status, 401);
+
+  const unauthAgentReq = new NextRequest("https://ctx.example.com/api/ctx-app-agent");
+  assert.equal((await agentGet(unauthAgentReq)).status, 403);
+});

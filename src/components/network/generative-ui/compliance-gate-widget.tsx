@@ -67,7 +67,7 @@ export function ComplianceGateWidget({ data }: { data: ComplianceGateData }) {
               size="md"
               color={isPassed ? 'accent' : 'warning'}
             />
-            <VStack gap={0}>
+            <VStack gap={1}>
               <Text size="xsm" color="secondary" weight="semibold">
                 Autonomous Compliance Gatekeeper • Statutory Verification
               </Text>

@@ -7,7 +7,6 @@ import type {
   ArchitectureDiffData,
   NeuralSubGraphData,
   FleetTraceData,
-  OrchestratorMessage,
 } from './types';
 
 export const SAMPLE_LEAD_DOSSIER: LeadQualificationData = {

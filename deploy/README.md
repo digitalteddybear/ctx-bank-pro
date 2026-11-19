@@ -29,14 +29,28 @@ docker compose logs --tail=100 web worker rag-index proxy
 Web, worker and indexing data use persistent named volumes. Caddy provisions HTTPS for CTX_DOMAIN. Sign in with the administrator credentials. Configure the sender, API model, templates and campaign from CTX.
 
 ## Backup and restore
-For a consistent application snapshot:
+Stop every writer, including web, outreach, indexing and any separately launched CLI worker. The `--writers-stopped` flag is an operator assertion, not a process detector. Individual SQLite backups are transaction-consistent; the stopped boundary makes the multiple databases and files consistent together.
+
+```sh
+mkdir -p backups
 docker compose stop web worker rag-index
-docker compose run --rm --no-deps -v "$PWD/backups:/backups" web node scripts/backup-data.mjs
+docker compose run --rm --no-deps -v "$PWD/backups:/backups" web node scripts/backup-data.mjs --writers-stopped
 docker compose start web worker rag-index
+```
 
-Protect the resulting backup and deploy/secrets together; losing the encryption key makes saved credentials unrecoverable. OAuth private config, if used, also needs a separate backup of ctx-config.
+Ensure the host backup directory is writable by container UID 1000. The backup contains `data/`, `config/` (when CTX_CONFIG_DIR is configured, as in Compose), and a checksum manifest. SQLite uses its backup API and integrity checks; WAL files are not copied directly. Attachments and other regular files are retained. Symlinks abort the backup. Existing backup destinations are never overwritten. A failed snapshot is removed and must not be used.
 
-Restore only with web, worker and indexing stopped. Restore the backed-up data tree into ctx-data using a maintenance container, preserving ownership UID 1000. Start services and verify health and stored settings before enabling delivery. Never overwrite an active SQLite database or delete Docker volumes during an upgrade.
+Protect backups as confidential data: file permissions are private, but backup contents are not encrypted by this script. Store them on encrypted storage with restricted access. Preserve `deploy/secrets` separately, particularly the settings encryption key, plus deployment configuration and the matching application image. Losing the key makes encrypted credentials unrecoverable. The read-only Phase 1 corpus mounted from the repository also needs versioned storage; it is outside these volumes.
+
+Validate and restore into a **new staging directory** first:
+
+```sh
+docker compose run --rm --no-deps -v "$PWD/backups:/backups" web node scripts/restore-data.mjs /backups/BACKUP_NAME /backups/restore-check
+```
+
+The restore command checks every checksum and SQLite database before copying. It refuses existing destinations and never replaces running volumes. With all writers still stopped, copy the verified `restore-check/data/` and `restore-check/config/` trees into fresh replacement volumes owned by UID 1000, and point the deployment at those volumes. Preserve the previous volumes for rollback. Do not merge a restore into existing database/WAL files.
+
+Start the restored instance with delivery and CRM writes disabled. Verify login, saved campaign/demo templates, conversation history, queued work, CRM state and health before resuming delivery. Uncertain delivery records require reconciliation; restoring an older snapshot must never automatically replay already-sent email. Run `npm run qa:recovery` for the isolated WAL/config/asset recovery and corrupted-backup rejection tests. A target-server application restore drill remains required.
 
 ## Upgrade and rollback
 Back up data before migrations. Tag the current application image before replacing it. Rebuild and start the new image, inspect all health checks, then run the controlled acceptance journey. Rollback uses the previous image and its compatible backup; do not assume older code can read a newer database schema.

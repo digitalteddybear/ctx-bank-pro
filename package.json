@@ -21,7 +21,7 @@
     "qa:hubspot": "node --import tsx --test scripts/hubspot-gateway-qa.ts",
     "qa:campaign": "node scripts/campaign-batch-qa.mjs",
     "qa:cal": "node --import tsx --test scripts/cal-webhook-qa.ts",
-    "qa:deliverability": "node --import tsx --test scripts/deliverability-daemon-qa.ts",
+    "qa:deliverability": "node --import tsx --test scripts/deliverability-daemon-qa.ts scripts/imap-catchup-qa.mjs",
     "qa:sandbox": "node --import tsx --test scripts/sandbox-simulator-qa.ts",
     "outreach:sandbox": "node --import tsx scripts/sandbox-100-conversations.ts",
     "qa:ci": "npm run typecheck && npm run qa:auth && npm run qa:hubspot && npm run qa:outreach && npm run qa:orchestrator && python3 ../../RAG/evaluate_redteam.py --target perimeter",
@@ -42,6 +42,7 @@
     "mcp:context": "tsx mcp/restart-context-server.ts",
     "qa:mcp": "node scripts/mcp-qa.mjs",
     "qa:mcp-bank": "node --import tsx scripts/ctx-bank-mcp-qa.ts",
+    "qa:authorizer": "node --import tsx --test scripts/action-authorizer-qa.ts",
     "qa:sync": "node scripts/live-sync-qa.mjs",
     "qa:visual": "node scripts/visual-qa.mjs",
     "qa:docs": "node scripts/docs-qa.mjs",
@@ -50,7 +51,8 @@
     "qa:api": "node scripts/api-qa.mjs",
     "outreach:service": "node --import tsx scripts/outreach-service.ts",
     "qa:templates": "node --import tsx --test scripts/reply-template-qa.ts",
-    "qa:production": "node --import tsx --test scripts/production-delivery-qa.ts scripts/operator-session-qa.ts scripts/reply-template-qa.ts scripts/delegated-booking-qa.ts"
+    "qa:production": "node --import tsx --test scripts/production-delivery-qa.ts scripts/operator-session-qa.ts scripts/profile-preferences-qa.ts scripts/inbox-template-qa.ts scripts/outreach-model-memory-qa.ts scripts/reply-template-qa.ts scripts/delegated-booking-qa.ts scripts/campaign-preview-qa.ts scripts/workspace-access-qa.ts scripts/ai-settings-persistence-qa.ts scripts/notification-qa.ts scripts/campaign-enrollment-qa.ts scripts/crm-queue-qa.ts scripts/scheduler-capacity-qa.ts",
+    "qa:recovery": "node --import tsx --test scripts/data-recovery-qa.mjs"
   },
   "dependencies": {
     "@astryxdesign/core": "^0.1.8",
@@ -59,10 +61,12 @@
     "@modelcontextprotocol/sdk": "^1.17.5",
     "@types/d3-force": "^3.0.10",
     "@types/nodemailer": "^8.0.2",
+    "border-beam": "^1.4.1",
     "clsx": "^2.1.1",
     "d3-force": "^3.0.0",
     "d3-scale": "^4.0.2",
     "d3-shape": "^3.2.0",
+    "distortion-waves": "^0.1.0",
     "esbuild": "0.28.1",
     "fuse.js": "^7.1.0",
     "imapflow": "^2.10.0",
@@ -72,7 +76,7 @@
     "mailparser": "^3.14.1",
     "mammoth": "^1.12.0",
     "motion": "^12.23.12",
-    "next": "^16.2.0",
+    "next": "16.4.5",
     "nodemailer": "^10.3.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -80,10 +84,11 @@
     "sanitize-html": "^2.18.1",
     "tailwind-merge": "^3.6.0",
     "thinking-orbs": "^0.3.2",
+    "tsx": "^4.20.5",
     "unpdf": "^1.6.2",
+    "voice-glow": "^0.3.0",
     "zod": "^4.1.5",
-    "zustand": "^5.0.8",
-    "tsx": "^4.20.5"
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@astryxdesign/cli": "^0.1.8",

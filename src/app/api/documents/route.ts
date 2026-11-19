@@ -4,11 +4,18 @@ import {
   documentRepository,
   MAX_DOCUMENT_BYTES,
 } from "@/lib/server/document-repository";
+import { hasLocalWorkspaceAccess } from "@/lib/server/local-workspace-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!hasLocalWorkspaceAccess(request)) {
+    return NextResponse.json(
+      { error: "Operator access required." },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const documents = await documentRepository.list();
   return NextResponse.json(
     documents.map(({ chunks, ...document }) => ({
@@ -20,6 +27,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!hasLocalWorkspaceAccess(request)) {
+    return NextResponse.json(
+      { error: "Operator access required." },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const form = await request.formData();
   const file = form.get("file");
   if (!(file instanceof File)) {

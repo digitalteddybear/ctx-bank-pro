@@ -1,6 +1,7 @@
 import { timingSafeEqual, randomBytes } from "node:crypto";
 import { jwtVerify, SignJWT } from "jose";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { deploymentSecret } from "./operator-session-secrets";
 
 export const MIN_SECRET_LENGTH = 32;
 export const DISALLOWED_PLACEHOLDERS = new Set([
@@ -11,6 +12,12 @@ export const DISALLOWED_PLACEHOLDERS = new Set([
   "admin",
   "123456",
 ]);
+
+export function safeEqualSecrets(expected: string, supplied: string): boolean {
+  const a = Buffer.from(expected, "utf8");
+  const b = Buffer.from(supplied, "utf8");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export interface AuthContext {
   authenticated: boolean;
@@ -31,11 +38,14 @@ export function isSameOriginRequest(request: NextRequest): boolean {
   const matchesOrigin = origin === request.nextUrl.origin;
   const isSameOriginHeader = secFetchSite === "same-origin";
 
-  return isLoopback && (isSameOriginHeader || matchesOrigin || !origin);
+  return isLoopback && (isSameOriginHeader || matchesOrigin);
 }
 
 export function getJwtSecretKey(): Uint8Array {
-  const secret = process.env.CTX_JWT_SECRET || process.env.AGENT_WRITE_TOKEN || process.env.CTX_OUTREACH_OPERATOR_TOKEN;
+  const secret =
+    deploymentSecret("CTX_JWT_SECRET") ||
+    deploymentSecret("AGENT_WRITE_TOKEN") ||
+    deploymentSecret("CTX_OUTREACH_OPERATOR_TOKEN");
   if (!secret || secret.length < MIN_SECRET_LENGTH) {
     throw new Error(
       `PRODUCTION_AUTH_ERROR: Authentication secret must be at least ${MIN_SECRET_LENGTH} characters. Please configure CTX_JWT_SECRET or AGENT_WRITE_TOKEN.`
@@ -67,7 +77,7 @@ export function generateSecureSecret(byteLength: number = 32): string {
 export async function verifyApiRequest(
   request: NextRequest,
   requiredScope?: string,
-  options: { allowSameOrigin?: boolean } = { allowSameOrigin: true }
+  options: { allowSameOrigin?: boolean } = { allowSameOrigin: false }
 ): Promise<AuthContext> {
   const authHeader = request.headers.get("authorization") || "";
   const token = authHeader.replace(/^Bearer\s+/i, "") || request.headers.get("x-agent-token") || "";
@@ -78,14 +88,12 @@ export async function verifyApiRequest(
       return { authenticated: false, error: "Rejected insecure development placeholder token." };
     }
 
-    const operatorToken = process.env.CTX_OUTREACH_OPERATOR_TOKEN;
-    const writeToken = process.env.AGENT_WRITE_TOKEN;
+    const operatorToken = deploymentSecret("CTX_OUTREACH_OPERATOR_TOKEN");
+    const writeToken = deploymentSecret("AGENT_WRITE_TOKEN");
 
-    for (const validSecret of [operatorToken, writeToken].filter(Boolean) as string[]) {
-      if (validSecret.length >= 24 && !DISALLOWED_PLACEHOLDERS.has(validSecret.toLowerCase())) {
-        const a = Buffer.from(validSecret);
-        const b = Buffer.from(token);
-        if (a.length === b.length && timingSafeEqual(a, b)) {
+    for (const validSecret of [operatorToken, writeToken].filter(Boolean)) {
+      if (validSecret.length >= MIN_SECRET_LENGTH && !DISALLOWED_PLACEHOLDERS.has(validSecret.toLowerCase())) {
+        if (safeEqualSecrets(validSecret, token)) {
           return {
             authenticated: true,
             subject: "bearer_service",

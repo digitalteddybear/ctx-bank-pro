@@ -12,7 +12,7 @@ function renderReplyPolicy(raw:unknown){
  const objectives=parsed.data.replyObjectives.map(x=>labels[x]).filter(Boolean),constraints=parsed.data.replyRules.filter(x=>x.enabled).map(x=>x.text?.trim()||rules[x.id]).filter((x):x is string=>Boolean(x));
  return `<campaign-reply-policy>\n<objectives>\n${objectives.map(x=>`<objective>${xmlEscape(x)}</objective>`).join("\n")}\n</objectives>\n<rules>\n${constraints.map(x=>`<rule>${xmlEscape(x)}</rule>`).join("\n")}\n</rules>\n</campaign-reply-policy>`;
 }
-import { AGENTS, BOOKING_URL as BASE_BOOKING_URL, responseSchemas, type Agent, type ModelAdapter, type RegulatorySource } from "./types";
+import { AGENTS, responseSchemas, type Agent, type ModelAdapter, type RegulatorySource } from "./types";
 
 export const roles: Record<Agent, string> = {
   prospect: 'Return {"summary":string,"sources":string[]}. Summarise only provided synthetic facts. Cite their source IDs. Separate unknown permission and qualification from facts. Never infer suitability or wealth.',
@@ -128,7 +128,6 @@ export class FixtureModel implements ModelAdapter {
       return { decision: checks.some(check => check.status === "fail") ? "revise" : "pass", summary: "Sandbox deliverability assessment; provider placement and infrastructure authentication remain unverified.", checks, citations: sources.map(source => ({ sourceId: source.id, hash: source.hash, quote: source.text.slice(0, 160) })) };
     }
     if (agent === "outreach") {
-      const BOOKING_URL=String(context.bookingUrl??BASE_BOOKING_URL);
       if (context.intent === "reply") {
         return contextualFixtureReply(context);
       }

@@ -1,5 +1,6 @@
 "use client";
 
+import {Text} from "@astryxdesign/core/Text";
 import { Switch } from "@astryxdesign/core/Switch";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { useApplicationTheme } from "./astryx-theme-provider";
@@ -18,10 +19,10 @@ export function ThemeSwitch() {
 }
 
 export function ThemePreferenceControl() {
-  const { preference, setPreference } = useApplicationTheme();
+  const { preference, setPreference,saveError } = useApplicationTheme();
 
   return (
-    <SegmentedControl
+    <><SegmentedControl
       label="Appearance preference"
       onChange={(value) => setPreference(value as "system" | "dark" | "light")}
       size="sm"
@@ -30,6 +31,6 @@ export function ThemePreferenceControl() {
       <SegmentedControlItem label="System" value="system" />
       <SegmentedControlItem label="Dark" value="dark" />
       <SegmentedControlItem label="Light" value="light" />
-    </SegmentedControl>
+    </SegmentedControl>{saveError&&<Text role="alert">{saveError}</Text>}</>
   );
 }
